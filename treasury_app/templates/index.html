@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Evidence-based TTB alcohol label review assistant">
+    <title>TTB Label Review Assistant</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <div>
+          <p class="eyebrow">Proof of concept</p>
+          <p class="site-title">TTB Label Review Assistant</p>
+        </div>
+        <span class="decision-support">Decision support only</span>
+      </div>
+    </header>
+
+    {% if mock_mode %}
+      <div class="mock-banner" role="status">
+        Mock mode is active. Results use fixed sample data; images are not analyzed.
+      </div>
+    {% endif %}
+
+    <main id="main-content" class="page-shell">
+      <section class="intro" aria-labelledby="page-heading">
+        <p class="eyebrow">Alcohol label verification</p>
+        <h1 id="page-heading">Review label applications with clear evidence</h1>
+        <p>
+          Compare application details with label artwork. The assistant flags
+          differences and uncertainty for a compliance specialist to review.
+        </p>
+      </section>
+
+      <div class="mode-switcher" role="tablist" aria-label="Review mode">
+        <button id="single-tab" class="mode-button active" type="button"
+                role="tab" aria-selected="true" aria-controls="single-panel">
+          Review one label
+        </button>
+        <button id="batch-tab" class="mode-button" type="button"
+                role="tab" aria-selected="false" aria-controls="batch-panel">
+          Review a batch
+        </button>
+      </div>
+
+      <section id="single-panel" role="tabpanel" aria-labelledby="single-tab">
+        <form id="review-form" class="review-form">
+          <div class="form-card">
+            <div class="step-heading">
+              <span class="step-number" aria-hidden="true">1</span>
+              <div>
+                <h2>Application details</h2>
+                <p>Enter the information submitted by the applicant.</p>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              <div class="field full-width">
+                <label for="application-id">Application ID <span class="optional">(optional)</span></label>
+                <input id="application-id" name="application_id" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="brand-name">Brand name</label>
+                <input id="brand-name" name="brand_name" required
+                       value="Old Tom Distillery">
+              </div>
+              <div class="field">
+                <label for="class-type">Class or type</label>
+                <input id="class-type" name="class_type" required
+                       value="Kentucky Straight Bourbon Whiskey">
+              </div>
+              <div class="field">
+                <label for="abv">Alcohol by volume (%)</label>
+                <input id="abv" name="abv" type="number" min="0.1" max="100"
+                       step="0.1" inputmode="decimal" required value="45">
+              </div>
+              <div class="field">
+                <label for="proof">Proof <span class="optional">(optional)</span></label>
+                <input id="proof" name="proof" type="number" min="0.1" max="200"
+                       step="0.1" inputmode="decimal" value="90">
+              </div>
+              <div class="field">
+                <label for="net-contents">Net contents</label>
+                <input id="net-contents" name="net_contents" required value="750 mL">
+              </div>
+              <div class="field">
+                <label for="country-origin">Country of origin <span class="optional">(imports only)</span></label>
+                <input id="country-origin" name="country_of_origin">
+              </div>
+              <div class="field full-width">
+                <label for="producer">Producer or bottler name and address</label>
+                <input id="producer" name="producer_name_address" required
+                       value="Old Tom Distillery, Louisville KY">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="step-heading">
+              <span class="step-number" aria-hidden="true">2</span>
+              <div>
+                <h2>Label artwork</h2>
+                <p>Add clear front, back, or side views. Up to four images.</p>
+              </div>
+            </div>
+            <div class="upload-area">
+              <label for="label-images">Choose label images</label>
+              <input id="label-images" name="images" type="file"
+                     accept="image/jpeg,image/png,image/webp" multiple required>
+              <p class="hint">JPEG, PNG, or WebP. Total upload limit: 12 MB.</p>
+              <ul id="selected-files" class="file-list" aria-live="polite"></ul>
+            </div>
+          </div>
+
+          <div id="form-error" class="alert error hidden" role="alert"
+               tabindex="-1"></div>
+          <button id="review-button" class="primary-button" type="submit">
+            Review this label
+          </button>
+        </form>
+        <section id="single-result" class="result-region hidden"
+                 aria-live="polite" aria-labelledby="result-heading"></section>
+      </section>
+
+      <section id="batch-panel" class="hidden" role="tabpanel"
+               aria-labelledby="batch-tab">
+        <div class="form-card">
+          <div class="step-heading">
+            <span class="step-number" aria-hidden="true">1</span>
+            <div>
+              <h2>Batch files</h2>
+              <p>
+                Upload one CSV manifest and all referenced label images.
+                Results appear as each application finishes.
+              </p>
+            </div>
+          </div>
+          <p>
+            <a id="template-link" class="text-link" href="#">Download CSV template</a>
+          </p>
+          <form id="batch-form">
+            <div class="field">
+              <label for="batch-csv">CSV manifest</label>
+              <input id="batch-csv" type="file" accept=".csv,text/csv" required>
+            </div>
+            <div class="field">
+              <label for="batch-images">Label images</label>
+              <input id="batch-images" type="file"
+                     accept="image/jpeg,image/png,image/webp" multiple required>
+            </div>
+            <div id="batch-error" class="alert error hidden" role="alert"
+                 tabindex="-1"></div>
+            <button id="batch-button" class="primary-button" type="submit">
+              Start batch review
+            </button>
+          </form>
+        </div>
+
+        <section id="batch-progress" class="batch-progress hidden" aria-live="polite">
+          <div class="progress-copy">
+            <h2>Batch progress</h2>
+            <p id="progress-text">Preparing applications…</p>
+          </div>
+          <progress id="progress-bar" value="0" max="1">0%</progress>
+        </section>
+
+        <section id="batch-results" class="result-region hidden">
+          <div class="batch-result-heading">
+            <h2>Batch results</h2>
+            <button id="export-results" class="secondary-button" type="button">
+              Export results as CSV
+            </button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Application</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Summary</th>
+                  <th scope="col">Time</th>
+                </tr>
+              </thead>
+              <tbody id="batch-result-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Prototype only. Final determinations remain with authorized TTB reviewers.
+      </p>
+    </footer>
+  </body>
+</html>
