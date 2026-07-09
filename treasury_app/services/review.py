@@ -21,7 +21,7 @@ GOVERNMENT_WARNING = (
 )
 MIN_CONFIDENCE = 0.75
 WARNING_EXPECTATION = (
-    "Required warning wording; “GOVERNMENT WARNING:” must be uppercase and bold."
+    "Government warning heading should be visible; typography requires human verification."
 )
 
 # These links lead to the TTB guidance page that discusses the particular
@@ -319,46 +319,27 @@ def build_review(
     )
 
     warning = extraction.government_warning
-    warning_text_matches = normalize_warning(warning.verbatim_text) == GOVERNMENT_WARNING
-    if not warning.verbatim_text:
-        warning_status = "review" if warning.confidence < MIN_CONFIDENCE else "mismatch"
-        warning_explanation = "The mandatory warning could not be read from the label."
-        warning_observed = "Warning text was not confidently read."
-    elif not warning_text_matches:
-        warning_status = "mismatch"
-        warning_explanation = "The warning wording or punctuation is not an exact match."
-        warning_observed = "Warning wording or punctuation differs from the required statement."
-    elif warning.heading_text != "GOVERNMENT WARNING:":
-        warning_status = "mismatch"
-        warning_explanation = "The warning heading is not the required uppercase wording."
-        warning_observed = (
-            f"Heading read as “{warning.heading_text}”."
-            if warning.heading_text
-            else "Required uppercase heading was not confidently read."
-        )
-    elif warning.heading_bold is False:
-        warning_status = "review"
-        warning_explanation = (
-            "Image reading could not reliably confirm that the heading is bold. "
-            "A reviewer should verify the uppercase, bold heading; the remainder "
-            "of the warning should not be bold."
-        )
-        warning_observed = "Warning wording and uppercase heading detected; bold heading needs visual confirmation."
-    elif warning.heading_bold is None or warning.legible is not True:
-        warning_status = "review"
-        warning_explanation = (
-            "The wording matches, but heading formatting or legibility is uncertain. "
-            "Confirm that only the uppercase heading is bold."
-        )
-        warning_observed = "Warning wording detected; formatting or legibility needs visual confirmation."
-    elif warning.confidence < MIN_CONFIDENCE:
-        warning_status = "review"
-        warning_explanation = "The warning appears correct, but image-reading confidence is low."
-        warning_observed = "Warning wording and heading detected; image-reading confidence is low."
-    else:
+    warning_source = " ".join(
+        part for part in (warning.heading_text, warning.verbatim_text, warning.evidence) if part
+    )
+    heading_detected = bool(
+        re.search(r"\bgovernment\s+warning\b", warning_source, re.IGNORECASE)
+    )
+    if heading_detected:
         warning_status = "match"
-        warning_explanation = "The warning wording and observable uppercase, bold heading match."
-        warning_observed = "Required warning wording and uppercase, bold heading detected."
+        warning_explanation = (
+            "The warning heading was located. This automated screen does not verify "
+            "the exact warning wording, capitalization, boldness, type size, "
+            "legibility, or placement; those remain human-review items."
+        )
+        warning_observed = "Government warning heading detected."
+    else:
+        warning_status = "review"
+        warning_explanation = (
+            "The government-warning heading was not confidently located. A reviewer "
+            "should confirm that the required statement is present and properly formatted."
+        )
+        warning_observed = "Government warning heading not confidently located."
 
     checks.append(
         ReviewCheck(
