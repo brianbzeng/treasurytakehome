@@ -302,13 +302,22 @@ def build_review(
     statuses = {check.status for check in checks}
     if "mismatch" in statuses:
         overall_status = "attention"
-        summary = "One or more fields need attention before this application can proceed."
+        summary = (
+            "The automated screen found one or more possible issues. "
+            "A reviewer must verify the label and applicable requirements before acting."
+        )
     elif "review" in statuses:
         overall_status = "unable"
-        summary = "No definite mismatch was found, but a reviewer must confirm uncertain evidence."
+        summary = (
+            "The automated screen could not verify one or more fields. "
+            "A reviewer should inspect the label and applicable requirements."
+        )
     else:
         overall_status = "match"
-        summary = "All automated comparisons match the supplied application."
+        summary = (
+            "No possible issue was detected by the automated screen. "
+            "This is not an approval or final determination."
+        )
 
     return ReviewResult(
         application_id=application.application_id,

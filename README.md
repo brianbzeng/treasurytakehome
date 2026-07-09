@@ -17,6 +17,8 @@ deterministic Python rules for every displayed match decision.
   country of origin, and the government warning.
 - Explain every result with expected values, observed values, and confidence.
 - Route uncertain or unreadable evidence to a human instead of guessing.
+- Present mismatches as possible issues for reviewer verification, never as a
+  final compliance determination.
 - Run without OpenCV, PaddleOCR, Redis, or persistent file storage.
 
 The original take-home prompt is preserved in

@@ -123,9 +123,15 @@ function renderResult(result) {
     ),
   );
 
+  const disclaimer = element(
+    "p",
+    "advisory result-disclaimer",
+    "Possible issues are AI-assisted guidance only. They may be incorrect or incomplete; verify the label artwork and applicable requirements before acting.",
+  );
+
   const list = element("div", "check-list");
   result.checks.forEach((check) => list.append(renderCheck(check)));
-  resultRegion.replaceChildren(header, list);
+  resultRegion.replaceChildren(header, disclaimer, list);
   resultRegion.classList.remove("hidden");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   resultRegion.scrollIntoView({
@@ -346,21 +352,59 @@ function appendBatchRow(result) {
     attention: "Needs attention",
     unable: "Human review required",
   };
-  [
-    result.application_id || "Not supplied",
-    statusNames[result.overall_status],
-    result.summary,
-    result.processing_ms === null ? "—" : `${result.processing_ms} ms`,
-  ].forEach((value) => row.append(element("td", "", value)));
+  row.append(
+    element("td", "", result.application_id || "Not supplied"),
+    element("td", "", statusNames[result.overall_status]),
+    renderPossibleIssues(result),
+    element("td", "", result.summary),
+    element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
+  );
   qs("#batch-result-body").append(row);
+}
+
+function renderPossibleIssues(result) {
+  const cell = document.createElement("td");
+  const checks = (result.checks || []).filter((check) => check.status !== "match");
+  if (!checks.length) {
+    cell.append(element("p", "no-issues", "No possible issue detected."));
+    return cell;
+  }
+
+  const list = element("ul", "issue-list");
+  checks.forEach((check) => {
+    const expected = check.expected || "not supplied";
+    const observed = check.observed || "not confidently detected";
+    list.append(
+      element(
+        "li",
+        "",
+        `${check.label}: expected ${expected}; observed ${observed}.`,
+      ),
+    );
+  });
+  cell.append(list);
+  return cell;
+}
+
+function possibleIssuesForExport(result) {
+  const checks = (result.checks || []).filter((check) => check.status !== "match");
+  if (!checks.length) return "No possible issue detected";
+  return checks
+    .map((check) => {
+      const expected = check.expected || "not supplied";
+      const observed = check.observed || "not confidently detected";
+      return `${check.label}: expected ${expected}; observed ${observed}`;
+    })
+    .join(" | ");
 }
 
 qs("#export-results").addEventListener("click", () => {
   const rows = [
-    ["application_id", "status", "summary", "processing_ms"],
+    ["application_id", "status", "possible_issues", "guidance", "processing_ms"],
     ...batchResults.map((result) => [
       result.application_id || "",
       result.overall_status,
+      possibleIssuesForExport(result),
       result.summary,
       result.processing_ms ?? "",
     ]),
