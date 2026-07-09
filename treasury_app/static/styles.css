@@ -96,6 +96,16 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 .intro h1 { margin: .2rem 0 .6rem; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; color: var(--navy-dark); }
 .intro p:last-child { color: var(--muted); font-size: 1.1rem; }
 
+.advisory, .batch-advisory {
+  margin: 1.25rem 0 0;
+  padding: .9rem 1rem;
+  color: #3d2c00;
+  background: var(--warning-bg);
+  border-left: 6px solid #e5a000;
+}
+
+.batch-advisory { margin-bottom: 1.25rem; color: var(--muted); }
+
 .mode-switcher {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -203,6 +213,7 @@ input:not([type="file"]) {
 .result-header.unable { background: var(--warning-bg); border-color: #e5a000; }
 
 .result-meta { margin-top: .5rem !important; color: var(--muted); font-size: .88rem; }
+.result-disclaimer { margin: 1.1rem 0 0; }
 .check-list { display: grid; gap: .8rem; margin-top: 1.25rem; }
 .check-card { padding: 1rem; border: 1px solid #dfe1e2; border-left-width: 6px; }
 .check-card.match { border-left-color: var(--success); }
@@ -226,6 +237,9 @@ progress { width: 100%; height: 1rem; margin-top: 1rem; accent-color: var(--blue
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: .75rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--white); background: var(--navy); }
+.issue-list { margin: 0; padding-left: 1.15rem; }
+.issue-list li + li { margin-top: .45rem; }
+.no-issues { margin: 0; color: var(--muted); }
 
 footer { padding: 1.5rem; text-align: center; color: var(--muted); border-top: 1px solid #dfe1e2; }
 

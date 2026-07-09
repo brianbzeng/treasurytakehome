@@ -35,6 +35,12 @@
           Compare application details with label artwork. The assistant flags
           differences and uncertainty for a compliance specialist to review.
         </p>
+        <div class="advisory" role="note">
+          <strong>AI-assisted guidance only.</strong> Possible issues are
+          suggestions based on automated image reading. They may be incorrect
+          or incomplete; confirm the label artwork and applicable requirements
+          before taking action.
+        </div>
       </section>
 
       <div class="mode-switcher" role="tablist" aria-label="Review mode">
@@ -176,13 +182,18 @@
               Export results as CSV
             </button>
           </div>
+          <p class="batch-advisory">
+            Possible issues are AI-assisted leads, not findings. Review the
+            expected and observed values against the label before acting.
+          </p>
           <div class="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th scope="col">Application</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Summary</th>
+                  <th scope="col">Possible issue(s)</th>
+                  <th scope="col">Guidance</th>
                   <th scope="col">Time</th>
                 </tr>
               </thead>
@@ -195,7 +206,8 @@
 
     <footer>
       <p>
-        Prototype only. Final determinations remain with authorized TTB reviewers.
+        Prototype only. AI-generated observations may be incomplete or wrong.
+        Final determinations remain with authorized TTB reviewers.
       </p>
     </footer>
   </body>

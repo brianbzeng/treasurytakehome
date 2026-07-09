@@ -48,6 +48,7 @@ def test_matching_extraction_passes_all_checks():
         provider_name="Mock provider",
     )
     assert result.overall_status == "match"
+    assert "not an approval" in result.summary.lower()
     assert all(check.status == "match" for check in result.checks)
 
 
@@ -58,6 +59,7 @@ def test_abv_difference_requires_attention():
         provider_name="Mock provider",
     )
     assert result.overall_status == "attention"
+    assert "possible issues" in result.summary.lower()
     abv_check = next(check for check in result.checks if check.key == "abv")
     assert abv_check.status == "mismatch"
 

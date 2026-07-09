@@ -24,6 +24,7 @@ def test_index_is_accessible(client):
     assert response.status_code == 200
     assert b"TTB Label Review Assistant" in response.data
     assert b"Mock mode is active" in response.data
+    assert b"AI-assisted guidance only" in response.data
 
 
 def test_health_reports_provider(client):
