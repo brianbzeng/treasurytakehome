@@ -110,7 +110,7 @@ def test_every_review_check_has_focused_ttb_guidance():
     assert all(check.guidance_url and check.guidance_url.startswith("https://www.ttb.gov/") for check in result.checks)
 
 
-def test_warning_must_match_exact_wording():
+def test_warning_ocr_variation_does_not_turn_a_matching_label_into_a_mismatch():
     extraction = mock_extraction()
     extraction.government_warning.verbatim_text = GOVERNMENT_WARNING.replace(
         "health problems", "serious health problems"
@@ -123,15 +123,15 @@ def test_warning_must_match_exact_wording():
     warning = next(
         check for check in result.checks if check.key == "government_warning"
     )
-    assert warning.status == "mismatch"
+    assert warning.status == "match"
     assert warning.expected == (
-        "Required warning wording; “GOVERNMENT WARNING:” must be uppercase and bold."
+        "Government warning heading should be visible; typography requires human verification."
     )
-    assert warning.observed == "Warning wording or punctuation differs from the required statement."
-    assert result.overall_status == "attention"
+    assert warning.observed == "Government warning heading detected."
+    assert result.overall_status == "match"
 
 
-def test_warning_boldness_is_manual_review_not_a_model_determined_mismatch():
+def test_warning_boldness_does_not_affect_the_automated_screen():
     extraction = mock_extraction()
     extraction.government_warning.heading_bold = False
     result = build_review(
@@ -142,9 +142,26 @@ def test_warning_boldness_is_manual_review_not_a_model_determined_mismatch():
     warning = next(
         check for check in result.checks if check.key == "government_warning"
     )
+    assert warning.status == "match"
+    assert "does not verify" in warning.explanation
+    assert result.overall_status == "match"
+
+
+def test_missing_warning_heading_routes_to_human_review():
+    extraction = mock_extraction()
+    extraction.government_warning.heading_text = None
+    extraction.government_warning.verbatim_text = None
+    extraction.government_warning.evidence = None
+    result = build_review(
+        sample_application(),
+        extraction,
+        provider_name="Mock provider",
+    )
+    warning = next(
+        check for check in result.checks if check.key == "government_warning"
+    )
     assert warning.status == "review"
-    assert warning.observed.endswith("needs visual confirmation.")
-    assert "remainder of the warning should not be bold" in warning.explanation
+    assert warning.observed == "Government warning heading not confidently located."
     assert result.overall_status == "unable"
 
 

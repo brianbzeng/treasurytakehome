@@ -59,8 +59,8 @@ For each expected text candidate:
 - Do not copy a candidate into value or evidence unless it is actually visible
   in the artwork.
 
-For alcohol content, proof, net contents, and government warning, transcribe
-only what is visibly present. Do not provide a compliance verdict.
+For alcohol content, proof, and net contents, transcribe only what is visibly
+present. Do not provide a compliance verdict.
 
 Use exactly this object shape:
 {
@@ -83,12 +83,11 @@ Use exactly this object shape:
   "notes": [string]
 }
 
-For government_warning.verbatim_text, preserve capitalization, punctuation,
-wording, and order exactly as visible. For heading_bold, assess only the words
-“GOVERNMENT WARNING:” — not the text after the heading — and return null when
-the image does not make font weight clear. The heading is required to be
-uppercase and bold; the remainder of the warning should be regular weight, not
-bold. Do not provide a compliance verdict.
+For government_warning, perform a lightweight presence check only: report the
+short “GOVERNMENT WARNING:” heading in heading_text and evidence when visible.
+Do not transcribe the body of the warning. Always return null for heading_bold;
+the model must not judge capitalization, boldness, type size, legibility, or
+placement. Those are human-review requirements, not automated screen results.
 
 Keep alcohol_content and proof separate: alcohol_content must contain only the
 percent alcohol-by-volume statement (for example, “40% Alc./Vol.”), while
