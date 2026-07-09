@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from difflib import SequenceMatcher
 
 from treasury_app.models import (
     ApplicationData,
@@ -93,45 +92,32 @@ def compare_text(
             evidence=field.evidence,
             confidence=field.confidence,
         )
-    if not field.value:
+    if field.expected_value_found is True and field.evidence:
         return ReviewCheck(
             key=key,
             label=label,
-            status="review" if field.confidence < MIN_CONFIDENCE else "mismatch",
+            status="match" if field.confidence >= MIN_CONFIDENCE else "review",
             expected=expected,
-            observed=None,
-            explanation="The field could not be read confidently from the label.",
+            observed=field.evidence,
+            explanation=(
+                "The expected application value was located in the visible label text."
+                if field.confidence >= MIN_CONFIDENCE
+                else "The expected application value may be visible, but the image-reading confidence is low."
+            ),
             evidence=field.evidence,
             confidence=field.confidence,
         )
 
-    expected_normalized = normalize_text(expected)
-    observed_normalized = normalize_text(field.value)
-    similarity = SequenceMatcher(
-        None, expected_normalized, observed_normalized
-    ).ratio()
-
-    if expected_normalized == observed_normalized:
-        status = "match"
-        explanation = "The application and label match after harmless formatting normalization."
-    elif similarity >= 0.86:
-        status = "review"
-        explanation = "The values are similar but require a reviewer to confirm the variation."
-    else:
-        status = "mismatch"
-        explanation = "The application and label values do not match."
-
-    if field.confidence < MIN_CONFIDENCE and status == "match":
-        status = "review"
-        explanation = "The value appears to match, but image-reading confidence is low."
-
     return ReviewCheck(
         key=key,
         label=label,
-        status=status,
+        status="review",
         expected=expected,
-        observed=field.value,
-        explanation=explanation,
+        observed="Not confidently located",
+        explanation=(
+            "The expected application value was not confidently located in the label artwork. "
+            "This is a possible review item, not proof that the value is absent or incorrect."
+        ),
         evidence=field.evidence,
         confidence=field.confidence,
     )

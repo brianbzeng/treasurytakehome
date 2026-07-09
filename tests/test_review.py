@@ -1,4 +1,4 @@
-from treasury_app.models import ApplicationData, LabelExtraction
+from treasury_app.models import ApplicationData, ExtractedField, LabelExtraction
 from treasury_app.services.providers import MockProvider
 from treasury_app.services.review import (
     GOVERNMENT_WARNING,
@@ -26,7 +26,7 @@ def sample_application(**overrides):
 
 
 def mock_extraction():
-    return MockProvider().extract([])
+    return MockProvider().extract([], sample_application())
 
 
 def test_normalization_handles_case_and_punctuation():
@@ -89,6 +89,26 @@ def test_low_confidence_routes_to_human_review():
         extraction,
         provider_name="Mock provider",
     )
+    assert result.overall_status == "unable"
+
+
+def test_text_not_confidently_located_is_guidance_not_a_mismatch():
+    extraction = mock_extraction()
+    extraction.brand_name = ExtractedField(
+        value=None,
+        evidence=None,
+        expected_value_found=False,
+        confidence=0.95,
+    )
+    result = build_review(
+        sample_application(),
+        extraction,
+        provider_name="Mock provider",
+    )
+    brand = next(check for check in result.checks if check.key == "brand_name")
+    assert brand.status == "review"
+    assert brand.observed == "Not confidently located"
+    assert "not proof" in brand.explanation
     assert result.overall_status == "unable"
 
 

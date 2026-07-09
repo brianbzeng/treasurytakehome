@@ -140,7 +140,7 @@ def review_label():
 
     try:
         provider = get_provider()
-        extraction = provider.extract(images)
+        extraction = provider.extract(images, application)
         result = build_review(
             application,
             extraction,

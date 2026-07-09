@@ -30,6 +30,7 @@ class ExtractedField(BaseModel):
 
     value: str | None = None
     evidence: str | None = None
+    expected_value_found: bool | None = None
     confidence: float = Field(default=0, ge=0, le=1)
 
 
