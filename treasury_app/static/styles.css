@@ -227,6 +227,23 @@ input:not([type="file"]) {
 .match .status-label { color: var(--success); }
 .review .status-label { color: var(--warning); }
 .mismatch .status-label { color: var(--error); }
+.check-guidance {
+  margin-top: 1rem;
+  padding: .85rem 1rem;
+  background: var(--blue-light);
+  border-left: 4px solid var(--blue);
+}
+.check-guidance p { margin: 0; }
+.guidance-kicker { color: var(--navy); font-size: .85rem; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+.guidance-summary { margin-top: .4rem !important; color: var(--muted); font-size: .92rem; }
+.override-control { margin-top: 1.25rem; padding: 1rem; background: #f1f8fe; border: 1px solid #8fb8de; }
+.override-control .secondary-button { width: auto; }
+.override-control p { margin: 0; }
+.override-note { margin-top: .55rem !important; color: var(--muted); font-size: .9rem; }
+.override-confirmation { margin-bottom: .55rem !important; color: #1a4480; font-weight: 750; }
+.override-control.compact { min-width: 12rem; margin: 0; padding: .65rem; }
+.override-control.compact .override-button { width: 100%; padding: .55rem .65rem; font-size: .9rem; }
+.override-control.compact .override-confirmation { font-size: .88rem; }
 
 .text-link { color: var(--blue); font-weight: 750; }
 .batch-progress { margin-top: 1.5rem; }

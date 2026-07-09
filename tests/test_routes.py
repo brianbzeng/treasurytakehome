@@ -46,6 +46,7 @@ def test_review_endpoint_returns_evidence_based_result(client):
     assert response.json["overall_status"] == "match"
     assert response.json["provider"] == "Mock provider"
     assert len(response.json["checks"]) >= 7
+    assert all(check["guidance_url"].startswith("https://www.ttb.gov/") for check in response.json["checks"])
 
 
 def test_review_rejects_unsupported_file_type(client):

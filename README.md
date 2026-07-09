@@ -21,6 +21,10 @@ deterministic Python rules for every displayed match decision.
   final compliance determination.
 - Verify text fields by locating the application value in the label artwork
   instead of asking the model to independently classify competing marketing text.
+- Link each possible issue to the focused TTB guidance page and summarize the
+  relevant topic for the reviewer.
+- Let a reviewer record a local, browser-only override and open COLAs Online;
+  the prototype never approves or transmits an application.
 - Run without OpenCV, PaddleOCR, Redis, or persistent file storage.
 
 The original take-home prompt is preserved in
@@ -147,6 +151,8 @@ Render metrics under realistic uploads.
   data.
 - Browser-coordinated batches are appropriate for the hosted assessment, not a
   production queue. A future iteration could add Render Key Value and a worker.
+- The reviewer override is deliberately local to the browser and is not an
+  approval, audit record, or submission to COLAs Online.
 
 ## Planned follow-up
 

@@ -21,6 +21,59 @@ GOVERNMENT_WARNING = (
 )
 MIN_CONFIDENCE = 0.75
 
+# These links lead to the TTB guidance page that discusses the particular
+# label statement, rather than to a generic help page.  The UI only exposes a
+# reference when the automated screen has not matched the corresponding check.
+GUIDANCE_REFERENCES: dict[str, tuple[str, str, str]] = {
+    "brand_name": (
+        "TTB: Brand name — including brand vs. fanciful names",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-brand-name",
+        "TTB distinguishes the required brand name from an optional distinctive or fanciful name; an optional name does not replace the brand name.",
+    ),
+    "class_type": (
+        "TTB: Class, type, and fanciful-name designations",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/anatomy-of-a-distilled-spirits-label-tool",
+        "The Class, Type, or Other Designation section explains when a class/type statement is required and when a specialty product may use a fanciful name with a statement of composition.",
+    ),
+    "abv": (
+        "TTB: Alcohol content statement requirements",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-alcohol-content",
+        "TTB describes the required percentage-alcohol-by-volume statement and how an optional proof statement may be shown with it.",
+    ),
+    "proof": (
+        "TTB: Alcohol content statement requirements",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-alcohol-content",
+        "TTB describes the required percentage-alcohol-by-volume statement and how an optional proof statement may be shown with it.",
+    ),
+    "net_contents": (
+        "TTB: Net contents — metric statement and container sizes",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-net-contents",
+        "This TTB page covers the net-contents statement, permitted metric forms, placement, and the current standards of fill.",
+    ),
+    "producer": (
+        "TTB: Name and address — bottler, distiller, or importer",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-name-address",
+        "TTB explains the required explanatory phrase and the name-and-address rules for domestic bottlers, distillers, and importers.",
+    ),
+    "country_of_origin": (
+        "TTB Ruling 2001-2: Country of origin for imported spirits",
+        "https://www.ttb.gov/images/pdfs/rulings/2001-2.htm",
+        "For imported distilled spirits, the ruling explains the country-of-origin statement, including the customary “Product of …” form.",
+    ),
+    "government_warning": (
+        "TTB: Health warning statement — text, placement, and formatting",
+        "https://www.ttb.gov/regulated-commodities/beverage-alcohol/"
+        "distilled-spirits/ds-labeling-home/ds-health-warning",
+        "TTB provides the required wording and the requirements for the uppercase, bold heading, legibility, placement, and type size.",
+    ),
+}
+
 
 def normalize_text(value: str | None) -> str:
     if not value:
@@ -159,6 +212,14 @@ def numeric_check(
     )
 
 
+def attach_guidance(check: ReviewCheck) -> None:
+    """Add a focused official reference to a check, when one is available."""
+    reference = GUIDANCE_REFERENCES.get(check.key)
+    if reference is None:
+        return
+    check.guidance_title, check.guidance_url, check.guidance_summary = reference
+
+
 def build_review(
     application: ApplicationData,
     extraction: LabelExtraction,
@@ -284,6 +345,9 @@ def build_review(
             confidence=warning.confidence,
         )
     )
+
+    for check in checks:
+        attach_guidance(check)
 
     statuses = {check.status for check in checks}
     if "mismatch" in statuses:
