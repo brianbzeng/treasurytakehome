@@ -51,6 +51,7 @@ class LabelExtraction(BaseModel):
     brand_name: ExtractedField = Field(default_factory=ExtractedField)
     class_type: ExtractedField = Field(default_factory=ExtractedField)
     alcohol_content: ExtractedField = Field(default_factory=ExtractedField)
+    proof: ExtractedField = Field(default_factory=ExtractedField)
     net_contents: ExtractedField = Field(default_factory=ExtractedField)
     producer_name_address: ExtractedField = Field(default_factory=ExtractedField)
     country_of_origin: ExtractedField = Field(default_factory=ExtractedField)
