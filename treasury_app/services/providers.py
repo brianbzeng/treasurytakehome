@@ -83,8 +83,11 @@ Use exactly this object shape:
 }
 
 For government_warning.verbatim_text, preserve capitalization, punctuation,
-wording, and order exactly as visible. Use null and low confidence when text or
-formatting cannot be determined. Do not provide a compliance verdict.
+wording, and order exactly as visible. For heading_bold, assess only the words
+“GOVERNMENT WARNING:” — not the text after the heading — and return null when
+the image does not make font weight clear. The heading is required to be
+uppercase and bold; the remainder of the warning should be regular weight, not
+bold. Do not provide a compliance verdict.
 """.strip()
 
 
