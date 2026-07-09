@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ttb-label-review
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()" --worker-class gthread --workers 1 --threads 4 --timeout 60
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: AI_PROVIDER
+        value: mimo
+      - key: MIMO_MODEL
+        value: mimo-v2.5
+      - key: MIMO_API_KEY
+        sync: false
