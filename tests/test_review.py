@@ -66,6 +66,40 @@ def test_abv_difference_requires_attention():
     assert abv_check.guidance_url.endswith("/ds-alcohol-content")
 
 
+def test_proof_uses_a_dedicated_extraction_not_the_abv_text():
+    extraction = mock_extraction()
+    extraction.alcohol_content = ExtractedField(
+        value="40% Alc./Vol.", evidence="40% Alc./Vol.", confidence=0.99
+    )
+    extraction.proof = ExtractedField(
+        value="80 Proof", evidence="80 Proof", confidence=0.99
+    )
+    result = build_review(
+        sample_application(abv=40, proof=80),
+        extraction,
+        provider_name="Mock provider",
+    )
+    proof = next(check for check in result.checks if check.key == "proof")
+    assert proof.status == "match"
+    assert proof.observed == "80 Proof"
+
+
+def test_unread_proof_is_review_instead_of_using_abv_as_proof():
+    extraction = mock_extraction()
+    extraction.alcohol_content = ExtractedField(
+        value="40% Alc./Vol.", evidence="40% Alc./Vol.", confidence=0.99
+    )
+    extraction.proof = ExtractedField(value=None, evidence=None, confidence=0.99)
+    result = build_review(
+        sample_application(abv=40, proof=80),
+        extraction,
+        provider_name="Mock provider",
+    )
+    proof = next(check for check in result.checks if check.key == "proof")
+    assert proof.status == "review"
+    assert proof.observed == "Not confidently read"
+
+
 def test_every_review_check_has_focused_ttb_guidance():
     result = build_review(
         sample_application(country_of_origin="Mexico"),

@@ -191,8 +191,12 @@ def numeric_check(
     tolerance: float = 0.05,
 ) -> ReviewCheck:
     if observed is None:
-        status = "review" if confidence < MIN_CONFIDENCE else "mismatch"
-        explanation = "A comparable numeric value could not be read from the label."
+        status = "review"
+        explanation = (
+            "A comparable numeric value was not confidently read from the label. "
+            "This requires reviewer confirmation rather than a mismatch finding."
+        )
+        observed_display = "Not confidently read"
     elif abs(expected - observed) <= tolerance:
         status = "match" if confidence >= MIN_CONFIDENCE else "review"
         explanation = (
@@ -200,15 +204,17 @@ def numeric_check(
             if status == "match"
             else "The value appears to match, but image-reading confidence is low."
         )
+        observed_display = observed_text
     else:
         status = "mismatch"
         explanation = "The numeric value does not match the application."
+        observed_display = observed_text
     return ReviewCheck(
         key=key,
         label=label,
         status=status,
         expected=f"{expected:g}",
-        observed=observed_text,
+        observed=observed_display,
         explanation=explanation,
         evidence=evidence,
         confidence=confidence,
@@ -259,10 +265,10 @@ def build_review(
                 key="proof",
                 label="Proof",
                 expected=application.proof,
-                observed=parse_proof(extraction.alcohol_content.value),
-                observed_text=extraction.alcohol_content.value,
-                evidence=extraction.alcohol_content.evidence,
-                confidence=extraction.alcohol_content.confidence,
+                observed=parse_proof(extraction.proof.value),
+                observed_text=extraction.proof.value,
+                evidence=extraction.proof.evidence,
+                confidence=extraction.proof.confidence,
                 tolerance=0.1,
             )
         )

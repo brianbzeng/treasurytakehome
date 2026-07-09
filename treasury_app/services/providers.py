@@ -59,14 +59,15 @@ For each expected text candidate:
 - Do not copy a candidate into value or evidence unless it is actually visible
   in the artwork.
 
-For alcohol content, net contents, and government warning, transcribe only
-what is visibly present. Do not provide a compliance verdict.
+For alcohol content, proof, net contents, and government warning, transcribe
+only what is visibly present. Do not provide a compliance verdict.
 
 Use exactly this object shape:
 {
   "brand_name": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "class_type": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "alcohol_content": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
+  "proof": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
   "net_contents": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
   "producer_name_address": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "country_of_origin": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
@@ -88,6 +89,13 @@ wording, and order exactly as visible. For heading_bold, assess only the words
 the image does not make font weight clear. The heading is required to be
 uppercase and bold; the remainder of the warning should be regular weight, not
 bold. Do not provide a compliance verdict.
+
+Keep alcohol_content and proof separate: alcohol_content must contain only the
+percent alcohol-by-volume statement (for example, “40% Alc./Vol.”), while
+proof must contain only the degrees-proof statement (for example, “80 Proof”).
+Never use an ABV number as proof or a proof number as ABV. If one statement is
+not confidently visible, return null for that field rather than copying the
+other statement.
 """.strip()
 
 
@@ -206,8 +214,13 @@ class MockProvider:
                 confidence=0.98,
             ),
             alcohol_content=ExtractedField(
-                value="45% Alc./Vol. (90 Proof)",
-                evidence="45% Alc./Vol. (90 Proof)",
+                value="45% Alc./Vol.",
+                evidence="45% Alc./Vol.",
+                confidence=0.99,
+            ),
+            proof=ExtractedField(
+                value="90 Proof",
+                evidence="90 Proof",
                 confidence=0.99,
             ),
             net_contents=ExtractedField(
