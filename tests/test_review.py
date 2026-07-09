@@ -62,6 +62,18 @@ def test_abv_difference_requires_attention():
     assert "possible issues" in result.summary.lower()
     abv_check = next(check for check in result.checks if check.key == "abv")
     assert abv_check.status == "mismatch"
+    assert abv_check.guidance_title == "TTB: Alcohol content statement requirements"
+    assert abv_check.guidance_url.endswith("/ds-alcohol-content")
+
+
+def test_every_review_check_has_focused_ttb_guidance():
+    result = build_review(
+        sample_application(country_of_origin="Mexico"),
+        mock_extraction(),
+        provider_name="Mock provider",
+    )
+    assert all(check.guidance_title for check in result.checks)
+    assert all(check.guidance_url and check.guidance_url.startswith("https://www.ttb.gov/") for check in result.checks)
 
 
 def test_warning_must_match_exact_wording():

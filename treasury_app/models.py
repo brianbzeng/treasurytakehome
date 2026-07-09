@@ -74,6 +74,9 @@ class ReviewCheck(BaseModel):
     explanation: str
     evidence: str | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
+    guidance_title: str | None = None
+    guidance_url: str | None = None
+    guidance_summary: str | None = None
 
 
 class ReviewResult(BaseModel):

@@ -13,6 +13,7 @@ const imageInput = qs("#label-images");
 const selectedFiles = qs("#selected-files");
 
 let batchResults = [];
+const colasOnlineUrl = "https://www.ttbonline.gov/colasonline/";
 
 function selectMode(mode) {
   const isSingle = mode === "single";
@@ -131,7 +132,8 @@ function renderResult(result) {
 
   const list = element("div", "check-list");
   result.checks.forEach((check) => list.append(renderCheck(check)));
-  resultRegion.replaceChildren(header, disclaimer, list);
+  const override = renderOverrideControl(result);
+  resultRegion.replaceChildren(header, disclaimer, list, override);
   resultRegion.classList.remove("hidden");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   resultRegion.scrollIntoView({
@@ -157,7 +159,76 @@ function renderCheck(check) {
     addDetail(details, "Confidence", `${Math.round(check.confidence * 100)}%`);
   }
   card.append(heading, status, description, details);
+  if (check.status !== "match" && check.guidance_url) {
+    const guidance = element("aside", "check-guidance");
+    guidance.append(
+      element("p", "guidance-kicker", "Relevant official guidance"),
+      externalLink(check.guidance_url, check.guidance_title || "Open TTB guidance"),
+    );
+    if (check.guidance_summary) {
+      guidance.append(element("p", "guidance-summary", check.guidance_summary));
+    }
+    card.append(guidance);
+  }
   return card;
+}
+
+function externalLink(url, label) {
+  const link = element("a", "text-link", label);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
+}
+
+function renderOverrideControl(result, compact = false) {
+  const control = element("section", compact ? "override-control compact" : "override-control");
+  if (result.overall_status === "match") {
+    control.append(
+      element(
+        "p",
+        "override-note",
+        "No reviewer override is needed for this automated match. This prototype does not submit an application to TTB.",
+      ),
+    );
+    return control;
+  }
+
+  if (result.reviewer_override) {
+    control.append(...overrideConfirmation(result, compact));
+    return control;
+  }
+
+  const button = element("button", "secondary-button override-button", "Continue to application anyway");
+  button.type = "button";
+  button.addEventListener("click", () => {
+    result.reviewer_override = true;
+    control.replaceChildren(...overrideConfirmation(result, compact));
+  });
+  control.append(button);
+  if (!compact) {
+    control.append(
+      element(
+        "p",
+        "override-note",
+        "Records a reviewer override in this browser only. It does not approve, reject, or transmit the application.",
+      ),
+    );
+  }
+  return control;
+}
+
+function overrideConfirmation(result, compact) {
+  const notice = element(
+    "p",
+    "override-confirmation",
+    "Reviewer override recorded. The automated result remains advisory and requires normal review procedures.",
+  );
+  const link = externalLink(colasOnlineUrl, compact ? "Open COLAs Online" : "Open COLAs Online to continue (external)");
+  if (!compact) {
+    return [notice, link, element("p", "override-note", "This prototype has not sent any application data to TTB.")];
+  }
+  return [notice, link];
 }
 
 function addDetail(list, name, value) {
@@ -358,8 +429,15 @@ function appendBatchRow(result) {
     renderPossibleIssues(result),
     element("td", "", result.summary),
     element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
+    renderBatchAction(result),
   );
   qs("#batch-result-body").append(row);
+}
+
+function renderBatchAction(result) {
+  const cell = document.createElement("td");
+  cell.append(renderOverrideControl(result, true));
+  return cell;
 }
 
 function renderPossibleIssues(result) {
@@ -374,13 +452,11 @@ function renderPossibleIssues(result) {
   checks.forEach((check) => {
     const expected = check.expected || "not supplied";
     const observed = check.observed || "not confidently detected";
-    list.append(
-      element(
-        "li",
-        "",
-        `${check.label}: expected ${expected}; observed ${observed}.`,
-      ),
-    );
+    const item = element("li", "", `${check.label}: expected ${expected}; observed ${observed}.`);
+    if (check.guidance_url) {
+      item.append(document.createTextNode(" "), externalLink(check.guidance_url, check.guidance_title || "TTB guidance"));
+    }
+    list.append(item);
   });
   cell.append(list);
   return cell;
@@ -398,14 +474,23 @@ function possibleIssuesForExport(result) {
     .join(" | ");
 }
 
+function guidanceLinksForExport(result) {
+  return (result.checks || [])
+    .filter((check) => check.status !== "match" && check.guidance_url)
+    .map((check) => `${check.label}: ${check.guidance_url}`)
+    .join(" | ");
+}
+
 qs("#export-results").addEventListener("click", () => {
   const rows = [
-    ["application_id", "status", "possible_issues", "guidance", "processing_ms"],
+    ["application_id", "status", "possible_issues", "guidance", "guidance_links", "reviewer_override", "processing_ms"],
     ...batchResults.map((result) => [
       result.application_id || "",
       result.overall_status,
       possibleIssuesForExport(result),
       result.summary,
+      guidanceLinksForExport(result),
+      result.reviewer_override ? "yes" : "no",
       result.processing_ms ?? "",
     ]),
   ];
