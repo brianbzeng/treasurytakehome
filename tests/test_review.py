@@ -90,7 +90,28 @@ def test_warning_must_match_exact_wording():
         check for check in result.checks if check.key == "government_warning"
     )
     assert warning.status == "mismatch"
+    assert warning.expected == (
+        "Required warning wording; “GOVERNMENT WARNING:” must be uppercase and bold."
+    )
+    assert warning.observed == "Warning wording or punctuation differs from the required statement."
     assert result.overall_status == "attention"
+
+
+def test_warning_boldness_is_manual_review_not_a_model_determined_mismatch():
+    extraction = mock_extraction()
+    extraction.government_warning.heading_bold = False
+    result = build_review(
+        sample_application(),
+        extraction,
+        provider_name="Mock provider",
+    )
+    warning = next(
+        check for check in result.checks if check.key == "government_warning"
+    )
+    assert warning.status == "review"
+    assert warning.observed.endswith("needs visual confirmation.")
+    assert "remainder of the warning should not be bold" in warning.explanation
+    assert result.overall_status == "unable"
 
 
 def test_low_confidence_routes_to_human_review():
