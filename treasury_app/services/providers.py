@@ -11,6 +11,7 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 from pydantic import ValidationError
 
 from treasury_app.models import (
+    ApplicationData,
     ExtractedField,
     LabelExtraction,
     WarningObservation,
@@ -24,7 +25,11 @@ class ProviderError(RuntimeError):
 class ExtractionProvider(Protocol):
     name: str
 
-    def extract(self, images: list["ImageInput"]) -> LabelExtraction:
+    def extract(
+        self,
+        images: list["ImageInput"],
+        application: ApplicationData,
+    ) -> LabelExtraction:
         """Extract structured observations from label images."""
 
 
@@ -37,17 +42,34 @@ class ImageInput:
 
 SYSTEM_PROMPT = """
 You extract evidence from United States alcohol beverage label artwork.
-Return JSON only. Transcribe what is visibly present; never infer a missing
-value and never copy an expected application value because none is provided.
+Return JSON only.
+
+You will receive expected text candidates from an application for the brand,
+class/type, producer/address, and possibly country of origin. Your role for
+those fields is to locate the expected candidate in the artwork, not to decide
+which other large or prominent wording is the legal brand or class/type.
+
+For each expected text candidate:
+- Set expected_value_found to true only when the candidate, or a harmless
+  case/punctuation/spacing variation of it, is visibly supported by the label.
+- Cite the exact visible phrase or surrounding line in evidence.
+- If the candidate is not confidently visible, set expected_value_found to
+  false and value to null. Do not substitute a marketing term, fanciful name,
+  slogan, or another candidate as a competing field value.
+- Do not copy a candidate into value or evidence unless it is actually visible
+  in the artwork.
+
+For alcohol content, net contents, and government warning, transcribe only
+what is visibly present. Do not provide a compliance verdict.
 
 Use exactly this object shape:
 {
-  "brand_name": {"value": string|null, "evidence": string|null, "confidence": 0..1},
-  "class_type": {"value": string|null, "evidence": string|null, "confidence": 0..1},
-  "alcohol_content": {"value": string|null, "evidence": string|null, "confidence": 0..1},
-  "net_contents": {"value": string|null, "evidence": string|null, "confidence": 0..1},
-  "producer_name_address": {"value": string|null, "evidence": string|null, "confidence": 0..1},
-  "country_of_origin": {"value": string|null, "evidence": string|null, "confidence": 0..1},
+  "brand_name": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
+  "class_type": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
+  "alcohol_content": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
+  "net_contents": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
+  "producer_name_address": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
+  "country_of_origin": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "government_warning": {
     "verbatim_text": string|null,
     "heading_text": string|null,
@@ -90,7 +112,11 @@ class MiMoProvider:
             max_retries=1,
         )
 
-    def extract(self, images: list[ImageInput]) -> LabelExtraction:
+    def extract(
+        self,
+        images: list[ImageInput],
+        application: ApplicationData,
+    ) -> LabelExtraction:
         content: list[dict] = []
         for image in images:
             encoded = base64.b64encode(image.content).decode("ascii")
@@ -106,8 +132,16 @@ class MiMoProvider:
             {
                 "type": "text",
                 "text": (
-                    "Extract all requested fields from these views of one "
-                    "product label. Return one combined JSON object."
+                    "Extract the requested evidence from these views of one "
+                    "product label. Return one combined JSON object.\n\n"
+                    "Expected text candidates to locate (these are search "
+                    "targets, not text to repeat unless visible):\n"
+                    f"- Brand name: {application.brand_name}\n"
+                    f"- Class or type: {application.class_type}\n"
+                    f"- Producer name and address: "
+                    f"{application.producer_name_address}\n"
+                    f"- Country of origin: "
+                    f"{application.country_of_origin or 'Not applicable'}"
                 ),
             }
         )
@@ -150,16 +184,22 @@ class MiMoProvider:
 class MockProvider:
     name = "Mock provider"
 
-    def extract(self, images: list[ImageInput]) -> LabelExtraction:
+    def extract(
+        self,
+        images: list[ImageInput],
+        application: ApplicationData,
+    ) -> LabelExtraction:
         return LabelExtraction(
             brand_name=ExtractedField(
                 value="OLD TOM DISTILLERY",
                 evidence="OLD TOM DISTILLERY",
+                expected_value_found=True,
                 confidence=0.99,
             ),
             class_type=ExtractedField(
                 value="Kentucky Straight Bourbon Whiskey",
                 evidence="Kentucky Straight Bourbon Whiskey",
+                expected_value_found=True,
                 confidence=0.98,
             ),
             alcohol_content=ExtractedField(
@@ -173,6 +213,7 @@ class MockProvider:
             producer_name_address=ExtractedField(
                 value="Old Tom Distillery, Louisville KY",
                 evidence="Old Tom Distillery, Louisville KY",
+                expected_value_found=True,
                 confidence=0.96,
             ),
             government_warning=WarningObservation(
