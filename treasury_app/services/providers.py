@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -20,6 +22,130 @@ from treasury_app.models import (
 
 class ProviderError(RuntimeError):
     """Safe, user-facing provider failure."""
+
+
+logger = logging.getLogger(__name__)
+
+EXTRACTED_FIELD_NAMES = (
+    "brand_name",
+    "class_type",
+    "alcohol_content",
+    "proof",
+    "net_contents",
+    "producer_name_address",
+    "country_of_origin",
+)
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return None
+
+
+def _optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "yes"}:
+            return True
+        if normalized in {"false", "no"}:
+            return False
+    return None
+
+
+def _confidence(value: object) -> float:
+    if isinstance(value, bool) or value is None:
+        return 0
+    try:
+        number = float(str(value).strip().removesuffix("%"))
+    except ValueError:
+        return 0
+    if number > 1 and number <= 100:
+        number /= 100
+    return min(1, max(0, number))
+
+
+def _field_payload(value: object) -> dict:
+    if isinstance(value, str):
+        value = {"value": value}
+    if not isinstance(value, dict):
+        value = {}
+    return {
+        "value": _optional_text(value.get("value")),
+        "evidence": _optional_text(value.get("evidence")),
+        "expected_value_found": _optional_bool(value.get("expected_value_found")),
+        "confidence": _confidence(value.get("confidence")),
+    }
+
+
+def _warning_payload(value: object) -> dict:
+    if not isinstance(value, dict):
+        value = {}
+    return {
+        "verbatim_text": _optional_text(value.get("verbatim_text")),
+        "heading_text": _optional_text(value.get("heading_text")),
+        "heading_bold": _optional_bool(value.get("heading_bold")),
+        "legible": _optional_bool(value.get("legible")),
+        "evidence": _optional_text(value.get("evidence")),
+        "confidence": _confidence(value.get("confidence")),
+    }
+
+
+def parse_extraction_response(message: str) -> LabelExtraction:
+    """Recover a safe extraction from common model JSON formatting mistakes."""
+    candidate = message.strip()
+    fenced = re.fullmatch(
+        r"```(?:json)?\s*(.*?)\s*```",
+        candidate,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if fenced:
+        candidate = fenced.group(1)
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError:
+        start, end = candidate.find("{"), candidate.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        payload = json.loads(candidate[start : end + 1])
+
+    if isinstance(payload, list) and len(payload) == 1 and isinstance(payload[0], dict):
+        payload = payload[0]
+    if not isinstance(payload, dict):
+        raise ValueError("The extraction response must be a JSON object.")
+
+    if not any(name in payload for name in EXTRACTED_FIELD_NAMES):
+        for wrapper in ("result", "extraction", "label_extraction"):
+            nested = payload.get(wrapper)
+            if isinstance(nested, dict):
+                payload = nested
+                break
+
+    notes = payload.get("notes")
+    if isinstance(notes, str):
+        notes = [notes]
+    elif isinstance(notes, list):
+        notes = [note for note in (_optional_text(item) for item in notes) if note]
+    else:
+        notes = []
+
+    normalized = {
+        name: _field_payload(payload.get(name)) for name in EXTRACTED_FIELD_NAMES
+    }
+    normalized.update(
+        {
+            "government_warning": _warning_payload(payload.get("government_warning")),
+            "raw_text": _optional_text(payload.get("raw_text")),
+            "notes": notes,
+        }
+    )
+    return LabelExtraction.model_validate(normalized)
 
 
 class ExtractionProvider(Protocol):
@@ -166,9 +292,11 @@ class MiMoProvider:
                 {
                     "type": "text",
                     "text": (
-                        "Return the required JSON object only. Use null for any "
-                        "uncertain value; do not add prose, markdown, or fields "
-                        "outside the requested object."
+                        "The prior response could not be parsed. Return the required "
+                        "JSON object only. Keep every value and evidence string under "
+                        "120 characters, set raw_text to null and notes to [], use null "
+                        "for uncertain values, and use confidence numbers from 0 to 1. "
+                        "Do not add prose, markdown, or unrequested fields."
                     ),
                 }
             )
@@ -179,9 +307,14 @@ class MiMoProvider:
                 {"role": "user", "content": request_content},
             ],
             response_format={"type": "json_object"},
-            max_completion_tokens=1800,
+            max_completion_tokens=2400,
+            temperature=0,
+            extra_body={"thinking": {"type": "disabled"}},
         )
-        message = response.choices[0].message.content
+        choice = response.choices[0]
+        if getattr(choice, "finish_reason", None) == "length":
+            raise IndexError("The image service response was truncated.")
+        message = choice.message.content
         if not message:
             raise IndexError("The image service returned an empty response.")
         return message
@@ -223,12 +356,17 @@ class MiMoProvider:
 
         try:
             invalid_response: Exception | None = None
-            for repair in (False, True):
+            for attempt, repair in enumerate((False, True), start=1):
                 try:
                     message = self._request_extraction(content, repair=repair)
-                    return LabelExtraction.model_validate(json.loads(message))
-                except (json.JSONDecodeError, ValidationError, IndexError) as exc:
+                    return parse_extraction_response(message)
+                except (json.JSONDecodeError, ValidationError, ValueError, IndexError) as exc:
                     invalid_response = exc
+                    logger.warning(
+                        "MiMo returned an invalid extraction on attempt %s (%s).",
+                        attempt,
+                        type(exc).__name__,
+                    )
             assert invalid_response is not None
             raise ProviderError(
                 "The image service returned an invalid result after a retry. Please retry."
