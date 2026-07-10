@@ -19,14 +19,17 @@ JPEG_BYTES = b"\xff\xd8\xff\xe0mock-jpeg"
 PNG_BYTES = b"\x89PNG\r\n\x1a\nmock-png"
 
 
-def test_index_is_accessible(client):
+def test_index_exposes_quick_and_csv_modes(client):
     response = client.get("/")
     assert response.status_code == 200
     assert b"TTB Label Review Assistant" in response.data
     assert b"Mock mode is active" in response.data
     assert b"AI-assisted guidance only" in response.data
-    assert b"Choose one to 100 images" in response.data
-    assert b"CSV manifest" not in response.data
+    assert b"Quick label scan" in response.data
+    assert b"Choose one to 100 label images" in response.data
+    assert b"Compare with application data" in response.data
+    assert b"CSV manifest" in response.data
+    assert b"Download CSV template" in response.data
 
 
 def test_health_reports_provider(client):
@@ -48,6 +51,8 @@ def test_label_only_screen_returns_possible_review_result(client):
     assert response.json["label_id"] == "example-label.jpg"
     assert response.json["overall_status"] == "match"
     assert response.json["beverage_type"] == "distilled_spirits"
+    assert "No possible" not in response.json["summary"]
+    assert "did not identify a major visible review item" in response.json["summary"]
     assert all(check["status"] != "mismatch" for check in response.json["checks"])
 
 

@@ -30,27 +30,40 @@
     <main id="main-content" class="page-shell" data-max-upload-mb="{{ max_upload_mb }}">
       <section class="intro" aria-labelledby="page-heading">
         <p class="eyebrow">Alcohol label screening</p>
-        <h1 id="page-heading">Screen label images for possible review items</h1>
+        <h1 id="page-heading">Choose the level of label review you need</h1>
         <p>
-          Choose one or more label images. The assistant identifies visible
-          information and points out items that may need a closer human review.
+          Run a quick image-only diagnostic, or compare labels against structured
+          application data for more confident discrepancy screening.
         </p>
         <div class="advisory" role="note">
-          <strong>AI-assisted guidance only.</strong> This screen does not compare
-          labels to an application record and does not approve, reject, or submit
-          anything to TTB. Confirm the label artwork and applicable requirements
-          before acting.
+          <strong>AI-assisted guidance only.</strong> These tools do not approve,
+          reject, or submit anything to TTB. Confirm the label artwork and
+          applicable requirements before acting.
         </div>
       </section>
 
-      <section id="screen-panel" aria-labelledby="screen-heading">
+      <div class="mode-switcher" role="tablist" aria-label="Screening mode">
+        <button id="quick-tab" class="mode-button active" type="button" role="tab"
+                aria-selected="true" aria-controls="quick-panel">
+          Quick label scan
+        </button>
+        <button id="compare-tab" class="mode-button" type="button" role="tab"
+                aria-selected="false" aria-controls="compare-panel" tabindex="-1">
+          Compare with application data
+        </button>
+      </div>
+
+      <section id="quick-panel" role="tabpanel" aria-labelledby="quick-tab">
         <form id="screen-form" class="review-form">
           <div class="form-card">
             <div class="step-heading">
               <span class="step-number" aria-hidden="true">1</span>
               <div>
-                <h2 id="screen-heading">Label images</h2>
-                <p>Choose one to 100 images. Each file is screened as one label.</p>
+                <h2>Quick diagnostic</h2>
+                <p>
+                  Choose one to 100 label images. Each file is screened for major
+                  visible omissions or uncertainty without application data.
+                </p>
               </div>
             </div>
             <div class="upload-area">
@@ -61,55 +74,129 @@
               <ul id="selected-files" class="file-list" aria-live="polite"></ul>
             </div>
           </div>
-
           <div id="screen-error" class="alert error hidden" role="alert" tabindex="-1"></div>
           <button id="screen-button" class="primary-button" type="submit">
-            Start label screen
+            Start quick scan
           </button>
         </form>
+
+        <section id="screen-progress" class="batch-progress hidden" aria-live="polite">
+          <div class="progress-copy">
+            <h2>Quick-scan progress</h2>
+            <p id="screen-progress-text">Preparing label images…</p>
+          </div>
+          <progress id="screen-progress-bar" value="0" max="1">0%</progress>
+        </section>
+
+        <section id="screen-results" class="result-region hidden" aria-labelledby="screen-results-heading">
+          <div class="batch-result-heading">
+            <h2 id="screen-results-heading">Quick-scan results</h2>
+            <button id="print-screen-results" class="secondary-button" type="button">
+              Save or print results
+            </button>
+          </div>
+          <p class="batch-advisory">
+            This diagnostic does not compare against an application record.
+            “Not confidently located” does not prove that a statement is absent.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Label</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Possible review items</th>
+                  <th scope="col">Guidance</th>
+                  <th scope="col">Time</th>
+                </tr>
+              </thead>
+              <tbody id="screen-result-body"></tbody>
+            </table>
+          </div>
+          <section id="screen-completion" class="batch-completion hidden" aria-live="polite">
+            <h3>Quick-scan summary</h3>
+            <p id="screen-completion-copy"></p>
+            <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
+               target="_blank" rel="noopener noreferrer">Continue to applications (external)</a>
+            <p class="override-note">This prototype does not submit application data to TTB.</p>
+          </section>
+        </section>
       </section>
 
-      <section id="screen-progress" class="batch-progress hidden" aria-live="polite">
-        <div class="progress-copy">
-          <h2>Screening progress</h2>
-          <p id="progress-text">Preparing label images…</p>
+      <section id="compare-panel" class="hidden" role="tabpanel" aria-labelledby="compare-tab">
+        <div class="form-card">
+          <div class="step-heading">
+            <span class="step-number" aria-hidden="true">1</span>
+            <div>
+              <h2>Application comparison</h2>
+              <p>
+                Upload a CSV manifest and its referenced label images. This mode
+                compares supplied application values with visible label evidence.
+              </p>
+            </div>
+          </div>
+          <p><a id="template-link" class="text-link" href="#">Download CSV template</a></p>
+          <p class="hint">
+            Fill one row per application, then upload every image named in the
+            <strong>image_filename</strong> column. Up to 300 applications.
+          </p>
+          <form id="compare-form">
+            <div class="field">
+              <label for="compare-csv">CSV manifest</label>
+              <input id="compare-csv" type="file" accept=".csv,text/csv" required>
+            </div>
+            <div class="field">
+              <label for="compare-images">Label images</label>
+              <input id="compare-images" type="file"
+                     accept="image/jpeg,image/png,image/webp" multiple required>
+            </div>
+            <div id="compare-error" class="alert error hidden" role="alert" tabindex="-1"></div>
+            <button id="compare-button" class="primary-button" type="submit">
+              Start application comparison
+            </button>
+          </form>
         </div>
-        <progress id="progress-bar" value="0" max="1">0%</progress>
-      </section>
 
-      <section id="screen-results" class="result-region hidden" aria-labelledby="results-heading">
-        <div class="batch-result-heading">
-          <h2 id="results-heading">Screening results</h2>
-          <button id="print-results" class="secondary-button" type="button">
-            Save or print results
-          </button>
-        </div>
-        <p class="batch-advisory">
-          Results are AI-assisted leads, not determinations. “Not confidently located”
-          does not establish that a statement is absent or noncompliant.
-        </p>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Label</th>
-                <th scope="col">Status</th>
-                <th scope="col">Possible review items</th>
-                <th scope="col">Guidance</th>
-                <th scope="col">Time</th>
-              </tr>
-            </thead>
-            <tbody id="screen-result-body"></tbody>
-          </table>
-        </div>
-        <section id="screen-completion" class="batch-completion hidden" aria-live="polite">
-          <h3>Screening summary</h3>
-          <p id="screen-completion-copy"></p>
-          <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
-             target="_blank" rel="noopener noreferrer">
-            Continue to applications (external)
-          </a>
-          <p class="override-note">This prototype does not submit application data to TTB.</p>
+        <section id="compare-progress" class="batch-progress hidden" aria-live="polite">
+          <div class="progress-copy">
+            <h2>Comparison progress</h2>
+            <p id="compare-progress-text">Preparing applications…</p>
+          </div>
+          <progress id="compare-progress-bar" value="0" max="1">0%</progress>
+        </section>
+
+        <section id="compare-results" class="result-region hidden" aria-labelledby="compare-results-heading">
+          <div class="batch-result-heading">
+            <h2 id="compare-results-heading">Application comparison results</h2>
+            <button id="print-compare-results" class="secondary-button" type="button">
+              Save or print results
+            </button>
+          </div>
+          <p class="batch-advisory">
+            Discrepancies are AI-assisted leads, not determinations. Review the
+            expected and observed values against the label before acting.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Application</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Review findings</th>
+                  <th scope="col">Guidance</th>
+                  <th scope="col">Time</th>
+                </tr>
+              </thead>
+              <tbody id="compare-result-body"></tbody>
+            </table>
+          </div>
+          <section id="compare-completion" class="batch-completion hidden" aria-live="polite">
+            <h3>Comparison summary</h3>
+            <p id="compare-completion-copy"></p>
+            <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
+               target="_blank" rel="noopener noreferrer">Continue to applications (external)</a>
+            <p class="override-note">This prototype does not submit application data to TTB.</p>
+          </section>
         </section>
       </section>
     </main>

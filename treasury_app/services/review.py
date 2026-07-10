@@ -763,8 +763,8 @@ def build_label_screen(
     else:
         overall_status = "match"
         summary = (
-            "No possible review items were identified from the visible label information. "
-            "This is not an approval or final determination."
+            "The automated screen did not identify a major visible review item. "
+            "This limited diagnostic is not an approval or final determination."
         )
 
     return LabelScreenResult(

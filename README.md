@@ -11,15 +11,21 @@ evidence-based observations.
 
 ## What the baseline supports
 
-- Screen one to 100 label images without requiring a CSV or typed application data.
-- Process label images progressively with two concurrent requests and per-label retries.
+- Run a quick diagnostic on one to 100 label images without requiring a CSV or
+  typed application data.
+- Compare as many as 300 CSV application rows with their referenced label
+  images when expected-versus-observed screening is needed.
+- Process both workflows progressively with two concurrent requests and
+  per-item retries.
 - Extract label fields through the multimodal `mimo-v2.5` API.
 - Identify the beverage profile and visible brand, class/type, alcohol statement,
   proof, net contents, producer/importer, country of origin, and government-warning heading.
 - Explain possible review items with observed label evidence and confidence.
 - Route uncertain or unreadable evidence to a human instead of guessing.
-- Never call a result a mismatch or a final compliance determination because no
-  application record is submitted with the label image.
+- In quick-scan mode, describe observations as possible review items rather
+  than mismatches because no application record is supplied.
+- In application-comparison mode, report differences between submitted values
+  and visible label evidence without treating them as final determinations.
 - Link each possible issue to the focused TTB guidance page and summarize the
   relevant topic for the reviewer.
 - Provide a save/print view and a link to COLAs Online; the prototype never
@@ -33,15 +39,18 @@ The original take-home prompt is preserved in
 
 ```text
 Browser
-  └─ label-only batch coordinator (two concurrent items)
-          ↓ multipart upload
+  ├─ Quick label scan (one to 100 images)
+  │      └─ /api/screen → possible label review items
+  └─ CSV application comparison (up to 300 rows)
+         └─ /api/review → expected-versus-observed discrepancies
+                    ↓ multipart upload
 Flask / Gunicorn
   ├─ input validation
   ├─ MiMo provider adapter
   ├─ Pydantic response validation
-  └─ commodity-aware label-only screening
+  └─ commodity-aware deterministic review rules
           ↓
-Evidence-based result (No possible review items / Possible review items / Unable to verify)
+Evidence-based result (No review item / Possible review item / Difference / Unable to verify)
 ```
 
 The model extracts observations only. Deterministic rules convert them into
@@ -94,12 +103,37 @@ the interface. It is disabled unless explicitly configured.
 MiMo receives images as Base64 data URLs. Uploaded images are not written to
 the application filesystem or database.
 
-## Label-only screening
+## Quick label scan
 
 Choose one to 100 JPEG, PNG, or WebP images. Each uploaded file is screened as
-one label. The browser sends at most two requests at once, shows results as they
-finish, and lets the reviewer retry only a label that the image service could
-not process. The app does not persist uploaded images or application data.
+one label. This is a fast diagnostic for major visible review items and
+uncertainty; it cannot identify an application mismatch because no application
+record is supplied. The browser sends at most two requests at once, shows
+results as they finish, and lets the reviewer retry only a label that the image
+service could not process.
+
+## Application-data comparison
+
+Choose **Compare with application data**, download the CSV template, and fill
+one row per application. Then upload the CSV and every referenced label image.
+The comparison mode supports up to 300 rows and reports differences between the
+supplied values and visible label evidence.
+
+Required CSV columns:
+
+```text
+id,beverage_type,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
+```
+
+Use `distilled_spirits`, `wine`, or `malt_beverage` for `beverage_type`. A blank
+beverage type defaults to distilled spirits for compatibility with older
+templates. `image_filename` must exactly match the name of an uploaded JPEG,
+PNG, or WebP file. The browser runs two comparisons at a time and provides a
+retry control for an individual processing failure.
+
+Uploaded images and application values are held only for the active browser
+session and request; the app does not persist them to its filesystem or a
+database.
 
 ## Testing
 
@@ -107,9 +141,9 @@ not process. The app does not persist uploaded images or application data.
 pytest
 ```
 
-The tests cover normalization, fuzzy-name handling, ABV/proof arithmetic,
-volume normalization, exact warning language, status aggregation, request
-validation, and mock-provider API behavior.
+The tests cover both API workflows, normalization, fuzzy-name handling,
+ABV/proof arithmetic, volume normalization, warning-heading handling, status
+aggregation, request validation, and mock-provider behavior.
 
 ## Render deployment
 
@@ -136,15 +170,16 @@ Render metrics under realistic uploads.
   information.
 - Boldness and legibility are visual model observations; uncertainty becomes
   manual review.
-- Exact warning comparison is deliberately conservative. A transcription
-  discrepancy creates a needs-attention result.
+- The automated screen checks whether the government-warning heading can be
+  confidently located. Exact wording, typography, legibility, and placement
+  remain human-review items.
 - External model use would require security, retention, data residency,
   accessibility, and authorization review before handling production federal
   data.
 - Browser-coordinated batches are appropriate for the hosted assessment, not a
   production queue. A future iteration could add Render Key Value and a worker.
-- The reviewer override is deliberately local to the browser and is not an
-  approval, audit record, or submission to COLAs Online.
+- Results and retries are browser-local and are not an approval, durable audit
+  record, or submission to COLAs Online.
 
 ## Planned follow-up
 
