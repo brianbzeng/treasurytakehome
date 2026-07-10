@@ -3,6 +3,7 @@ from treasury_app.services.providers import MockProvider
 from treasury_app.services.review import (
     GOVERNMENT_WARNING,
     build_review,
+    normalize_business_name,
     normalize_text,
     parse_abv,
     parse_proof,
@@ -31,6 +32,27 @@ def mock_extraction():
 
 def test_normalization_handles_case_and_punctuation():
     assert normalize_text("STONE'S THROW") == normalize_text("Stone’s Throw")
+    assert normalize_business_name("Sharptop Distilling Co.") == normalize_business_name(
+        "SHARPTOP DISTILLING COMPANY"
+    )
+
+
+def test_brand_company_suffix_variant_is_matching_evidence():
+    extraction = mock_extraction()
+    extraction.brand_name = ExtractedField(
+        value="SHARPTOP DISTILLING CO.",
+        evidence="BOTTLED BY: SHARPTOP DISTILLING CO.",
+        expected_value_found=False,
+        confidence=0.99,
+    )
+    result = build_review(
+        sample_application(brand_name="SHARPTOP DISTILLING COMPANY"),
+        extraction,
+        provider_name="Mock provider",
+    )
+    brand = next(check for check in result.checks if check.key == "brand_name")
+    assert brand.status == "match"
+    assert brand.observed == "BOTTLED BY: SHARPTOP DISTILLING CO."
 
 
 def test_numeric_parsers():
