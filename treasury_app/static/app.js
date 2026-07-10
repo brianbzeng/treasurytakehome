@@ -387,6 +387,7 @@ async function processBatch(rows, imagesByName) {
         const failure = {
           application_id: row.id,
           overall_status: "unable",
+          request_failed: true,
           summary: error.message,
           processing_ms: null,
           checks: [],
@@ -399,7 +400,6 @@ async function processBatch(rows, imagesByName) {
               [imagesByName.get(row.image_filename)],
             );
             batchResults[resultIndex] = retriedResult;
-            renderBatchCompletion();
             return retriedResult;
           } catch (retryError) {
             failure.summary = retryError.message;
@@ -437,13 +437,16 @@ function appendBatchRow(result, retry = null) {
     attention: "Needs attention",
     unable: "Human review required",
   };
+  const statusName = result.request_failed
+    ? "Processing failed"
+    : statusNames[result.overall_status];
   const guidance = element("td", "", result.summary);
   if (retry) {
     guidance.append(renderBatchRetry(retry, row));
   }
   row.append(
     element("td", "", result.application_id || "Not supplied"),
-    element("td", "", statusNames[result.overall_status]),
+    element("td", "", statusName),
     renderPossibleIssues(result),
     guidance,
     element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
@@ -465,6 +468,7 @@ function renderBatchRetry(retry, originalRow) {
       const result = await retry();
       const replacement = appendBatchRow(result);
       originalRow.replaceWith(replacement);
+      renderBatchCompletion();
     } catch (error) {
       button.disabled = false;
       button.textContent = "Retry this application";
@@ -478,6 +482,10 @@ function renderBatchRetry(retry, originalRow) {
 
 function renderPossibleIssues(result) {
   const cell = document.createElement("td");
+  if (result.request_failed) {
+    cell.append(element("p", "no-issues", "No review result was produced."));
+    return cell;
+  }
   if (result.overall_status === "match") {
     cell.append(element("p", "no-issues", "No discrepancies identified."));
     return cell;
@@ -512,7 +520,10 @@ function formatApplicationIds(results) {
 function renderBatchCompletion() {
   if (!batchResults.length) return;
   const discrepancies = batchResults.filter((result) => result.overall_status === "attention");
-  const uncertain = batchResults.filter((result) => result.overall_status === "unable");
+  const failed = batchResults.filter((result) => result.request_failed);
+  const uncertain = batchResults.filter(
+    (result) => result.overall_status === "unable" && !result.request_failed,
+  );
   const copy = [];
 
   if (discrepancies.length) {
@@ -525,6 +536,11 @@ function renderBatchCompletion() {
       `Applications ${formatApplicationIds(uncertain)} ${uncertain.length === 1 ? "requires" : "require"} human review because the automated screen could not verify all supplied values.`,
     );
   }
+  if (failed.length) {
+    copy.push(
+      `Applications ${formatApplicationIds(failed)} could not be processed and can be retried.`,
+    );
+  }
   if (!copy.length) {
     copy.push(`All ${batchResults.length} applications matched the supplied application data.`);
   }
@@ -534,42 +550,7 @@ function renderBatchCompletion() {
   qs("#batch-completion").classList.remove("hidden");
 }
 
-function possibleIssuesForExport(result) {
-  const checks = (result.checks || []).filter((check) => check.status !== "match");
-  if (!checks.length) return "No discrepancies identified";
-  return checks
-    .map((check) => {
-      const expected = check.expected || "not supplied";
-      const observed = check.observed || "not confidently detected";
-      return `${check.label}: expected ${expected}; observed ${observed}`;
-    })
-    .join(" | ");
-}
-
-function guidanceLinksForExport(result) {
-  return (result.checks || [])
-    .filter((check) => check.status !== "match" && check.guidance_url)
-    .map((check) => `${check.label}: ${check.guidance_url}`)
-    .join(" | ");
-}
-
-qs("#export-results").addEventListener("click", () => {
-  const rows = [
-    ["application_id", "status", "possible_issues", "guidance", "guidance_links", "processing_ms"],
-    ...batchResults.map((result) => [
-      result.application_id || "",
-      result.overall_status,
-      possibleIssuesForExport(result),
-      result.summary,
-      guidanceLinksForExport(result),
-      result.processing_ms ?? "",
-    ]),
-  ];
-  downloadText(
-    "ttb-batch-results.csv",
-    `${rows.map((row) => row.map(csvEscape).join(",")).join("\n")}\n`,
-  );
-});
+qs("#print-results").addEventListener("click", () => window.print());
 
 function csvEscape(value) {
   const text = String(value ?? "");
