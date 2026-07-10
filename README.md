@@ -328,6 +328,7 @@ Every repository change was delivered through a pull request:
 | [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
 | [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Prepared the evaluator-facing setup, architecture, assumptions, and delivery documentation. |
 | [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, attention to detail, and primary project concerns. |
+| [#22](https://github.com/brianbzeng/treasurytakehome/pull/22) | Condensed AI usage into the tools table and separated project assumptions from known limitations. |
 
 ## Planned follow-up
 
