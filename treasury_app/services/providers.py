@@ -73,6 +73,12 @@ and city/state are visible, even if the label adds a phrase such as “Produced
 by,” uses a logo, or omits punctuation, a street address, or a ZIP code. Do not
 accept a different business name, city, or state.
 
+For country_of_origin, extract the actual country named in a visible “Product
+of,” “Made in,” or equivalent origin statement. Put only the country name in
+value (for example, “Mexico”) and the complete visible phrase in evidence. If
+the stated country differs from the application candidate, still return the
+actual country value; do not return null merely because it differs.
+
 For alcohol content, proof, and net contents, transcribe only what is visibly
 present. Do not provide a compliance verdict.
 
@@ -136,6 +142,33 @@ class MiMoProvider:
             max_retries=1,
         )
 
+    def _request_extraction(self, content: list[dict], *, repair: bool) -> str:
+        request_content = list(content)
+        if repair:
+            request_content.append(
+                {
+                    "type": "text",
+                    "text": (
+                        "Return the required JSON object only. Use null for any "
+                        "uncertain value; do not add prose, markdown, or fields "
+                        "outside the requested object."
+                    ),
+                }
+            )
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": request_content},
+            ],
+            response_format={"type": "json_object"},
+            max_completion_tokens=1800,
+        )
+        message = response.choices[0].message.content
+        if not message:
+            raise IndexError("The image service returned an empty response.")
+        return message
+
     def extract(
         self,
         images: list[ImageInput],
@@ -171,24 +204,17 @@ class MiMoProvider:
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": content},
-                ],
-                response_format={"type": "json_object"},
-                max_completion_tokens=1800,
-            )
-            message = response.choices[0].message.content
-            if not message:
-                raise ProviderError("The image service returned an empty response.")
-            payload = json.loads(message)
-            return LabelExtraction.model_validate(payload)
-        except (json.JSONDecodeError, ValidationError, IndexError) as exc:
+            invalid_response: Exception | None = None
+            for repair in (False, True):
+                try:
+                    message = self._request_extraction(content, repair=repair)
+                    return LabelExtraction.model_validate(json.loads(message))
+                except (json.JSONDecodeError, ValidationError, IndexError) as exc:
+                    invalid_response = exc
+            assert invalid_response is not None
             raise ProviderError(
-                "The image service returned an invalid result. Please retry."
-            ) from exc
+                "The image service returned an invalid result after a retry. Please retry."
+            ) from invalid_response
         except APITimeoutError as exc:
             raise ProviderError(
                 "The image review timed out. Please retry with a smaller image."
