@@ -94,30 +94,16 @@ The original take-home prompt is preserved in
 
 ## Tools used
 
-- **Python 3.11, Flask, Jinja, and vanilla JavaScript/CSS** for a small,
-  server-rendered application with no front-end build step.
-- **Xiaomi MiMo `mimo-v2.5`** as the remote multimodal image/OCR provider.
-- **Pydantic** to validate model responses before review logic uses them.
-- **Deterministic Python comparison and normalization rules** for ABV/proof,
-  volume, text matching, and status aggregation.
-- **pytest and GitHub Actions** for automated regression tests.
-- **Gunicorn and Render** for hosted deployment.
-
-## AI usage disclosure
-
-AI was used in two distinct roles:
-
-| Model or system | Role in this project |
+| Tool | Role |
 | --- | --- |
-| **Xiaomi MiMo `mimo-v2.5`** | The deployed application's only inference model. It receives label images, transcribes visible evidence, and returns structured observations for deterministic review. |
-| **OpenAI Codex (GPT-5-based coding agent)** | My primary development assistant for planning, implementation, debugging, test construction, test-data preparation, code review, Git workflow, and documentation. |
-
-I did not train or fine-tune a model. Codex-generated changes were reviewed and
-iterated against the application behavior and automated tests rather than
-accepted as authoritative. The exact internal Codex snapshot was not pinned in
-the repository, so I am not claiming a more specific model identifier than the
-one exposed by the Codex client. `MockProvider` is a deterministic test fixture,
-not an AI model.
+| **GPT-5.5 (Codex planning)** | Requirements analysis, architecture planning, risk identification, TTB workflow review, and edge-case design. |
+| **GPT-5.6 (Codex execution)** | Implementation, debugging, test construction, test-data preparation, code review, Git/PR workflow, and documentation. |
+| **Xiaomi MiMo 2.5 (`mimo-v2.5`)** | Runtime vision model for OCR and structured field extraction from label images. |
+| **Python 3.11 / Flask / Jinja** | Server-rendered application, API endpoints, validation flow, and review orchestration. |
+| **Vanilla JavaScript / CSS** | Progressive batch processing, retries, result summaries, print views, and accessible interface behavior. |
+| **Pydantic** | Application-input and model-output validation before deterministic rules run. |
+| **pytest / GitHub Actions** | Regression coverage and pull-request verification. |
+| **Gunicorn / Render** | Hosted deployment, environment configuration, and health checks. |
 
 ## Architecture
 
@@ -270,7 +256,31 @@ No persistent disk is required. A 512 MB paid Starter instance should be
 sufficient for the baseline because model inference runs remotely; confirm with
 Render metrics under realistic uploads.
 
-## Assumptions and deliberate limitations
+## Assumptions
+
+- This is a standalone proof of concept; direct COLAs Online integration,
+  authentication, approval, rejection, and submission are out of scope.
+- The individual workflow assumes the reviewer already has the submitted
+  application values. The CSV workflow represents a future structured export
+  from COLAs, with `image_filename` acting as the join key to uploaded artwork.
+- One quick-scan image represents one screening item. Multiple front, back, or
+  side views of the same label belong in the individual-review workflow.
+- A blank country of origin means the product is domestic; country-of-origin
+  comparison applies when an imported product supplies that value.
+- Text fields may differ in case, punctuation, spacing, common legal suffixes,
+  decimal separators, or common translations without representing a material
+  discrepancy. Numeric fields remain comparatively strict.
+- MiMo only needs to infer a broad profile—distilled spirits, wine, malt
+  beverage, or unknown. It is not expected to select a specific TTB Product
+  Class/Type code from the full lookup table.
+- The quick scan is a diagnostic, not an application comparison. “Not
+  confidently located” means the evidence needs review; it does not prove that
+  a required statement is absent.
+- The upload and concurrency limits are appropriate for a hosted take-home
+  prototype: four views for one label, 100 quick-scan images, 300 CSV rows, and
+  two simultaneous model requests.
+
+## Known limitations
 
 - The prototype covers common label comparisons for distilled spirits, wine,
   and malt beverages; it is not a comprehensive commodity-specific rules engine.
