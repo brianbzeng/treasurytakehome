@@ -361,7 +361,7 @@ def build_review(
     if "mismatch" in statuses:
         overall_status = "attention"
         summary = (
-            "The automated screen found one or more possible issues. "
+            "The automated screen found one or more differences. "
             "A reviewer must verify the label and applicable requirements before acting."
         )
     elif "review" in statuses:
@@ -373,7 +373,8 @@ def build_review(
     else:
         overall_status = "match"
         summary = (
-            "No possible issue was detected by the automated screen. "
+            "No discrepancies were identified between the supplied application "
+            "values and the label evidence. "
             "This is not an approval or final determination."
         )
 

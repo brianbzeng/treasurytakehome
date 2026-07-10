@@ -127,7 +127,7 @@ function renderResult(result) {
   const disclaimer = element(
     "p",
     "advisory result-disclaimer",
-    "Possible issues are AI-assisted guidance only. They may be incorrect or incomplete; verify the label artwork and applicable requirements before acting.",
+    "Automated findings are AI-assisted guidance only. They may be incorrect or incomplete; verify the label artwork and applicable requirements before acting.",
   );
 
   const list = element("div", "check-list");
@@ -444,7 +444,7 @@ function renderPossibleIssues(result) {
   const cell = document.createElement("td");
   const checks = (result.checks || []).filter((check) => check.status !== "match");
   if (!checks.length) {
-    cell.append(element("p", "no-issues", "No possible issue detected."));
+    cell.append(element("p", "no-issues", "No discrepancies identified."));
     return cell;
   }
 
@@ -464,7 +464,7 @@ function renderPossibleIssues(result) {
 
 function possibleIssuesForExport(result) {
   const checks = (result.checks || []).filter((check) => check.status !== "match");
-  if (!checks.length) return "No possible issue detected";
+  if (!checks.length) return "No discrepancies identified";
   return checks
     .map((check) => {
       const expected = check.expected || "not supplied";

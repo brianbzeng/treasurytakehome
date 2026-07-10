@@ -59,6 +59,12 @@ For each expected text candidate:
 - Do not copy a candidate into value or evidence unless it is actually visible
   in the artwork.
 
+For producer_name_address specifically, inspect the name-and-address statement
+separately. Treat the expected producer as located when the same business name
+and city/state are visible, even if the label adds a phrase such as “Produced
+by,” uses a logo, or omits punctuation, a street address, or a ZIP code. Do not
+accept a different business name, city, or state.
+
 For alcohol content, proof, and net contents, transcribe only what is visibly
 present. Do not provide a compliance verdict.
 
