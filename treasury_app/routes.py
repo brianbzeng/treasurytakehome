@@ -69,13 +69,33 @@ def get_provider():
     )
 
 
-@bp.get("/")
-def index():
+def _render_review_page(mode: str = "home"):
     return render_template(
         "index.html",
+        mode=mode,
         mock_mode=current_app.config["AI_PROVIDER"] == "mock",
         max_upload_mb=current_app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024),
     )
+
+
+@bp.get("/")
+def index():
+    return _render_review_page()
+
+
+@bp.get("/review")
+def individual_review():
+    return _render_review_page("individual")
+
+
+@bp.get("/quick-scan")
+def quick_scan():
+    return _render_review_page("quick")
+
+
+@bp.get("/batch-review")
+def batch_review():
+    return _render_review_page("compare")
 
 
 @bp.get("/health")
