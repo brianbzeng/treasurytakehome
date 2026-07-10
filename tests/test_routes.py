@@ -30,7 +30,7 @@ def test_index_links_to_each_dedicated_review_workflow(client):
     assert b"Review a batch" in response.data
     assert b"Open one-label review" in response.data
     assert b"Submitted application values" not in response.data
-    assert b"CSV manifest" not in response.data
+    assert b'id="compare-form"' not in response.data
     assert b'individual-beverage-type' not in response.data
 
 
