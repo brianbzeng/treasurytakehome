@@ -185,8 +185,28 @@ def normalize_country(value: str | None) -> str:
         "us": "united states",
         "usa": "united states",
         "united states of america": "united states",
+        "italia": "italy",
+        "italien": "italy",
+        "espana": "spain",
+        "espagne": "spain",
+        "deutschland": "germany",
+        "allemagne": "germany",
+        "portogallo": "portugal",
+        "portugal": "portugal",
+        "italy": "italy",
+        "spain": "spain",
+        "germany": "germany",
+        "france": "france",
     }
-    return aliases.get(normalized, normalized)
+    if normalized in aliases:
+        return aliases[normalized]
+    # Image extraction occasionally returns the full origin line instead of only
+    # the country. Recognize a country term in that line while keeping a city or
+    # region alone from being treated as a country-of-origin match.
+    for term, canonical in aliases.items():
+        if re.search(rf"\b{re.escape(term)}\b", normalized):
+            return canonical
+    return normalized
 
 
 def normalize_warning(value: str | None) -> str:
@@ -194,40 +214,43 @@ def normalize_warning(value: str | None) -> str:
 
 
 def parse_numbers(value: str | None) -> list[float]:
-    return [float(number) for number in re.findall(r"\d+(?:\.\d+)?", value or "")]
+    return [
+        float(number.replace(",", "."))
+        for number in re.findall(r"\d+(?:[.,]\d+)?", value or "")
+    ]
 
 
 def parse_abv(value: str | None) -> float | None:
     if not value:
         return None
     match = re.search(
-        r"(\d+(?:\.\d+)?)\s*%\s*(?:alc(?:ohol)?\.?\s*/?\s*vol(?:ume)?\.?)?",
+        r"(\d+(?:[.,]\d+)?)\s*%\s*(?:alc(?:ohol)?\.?\s*/?\s*vol(?:ume)?\.?)?",
         value,
         re.IGNORECASE,
     )
-    return float(match.group(1)) if match else None
+    return float(match.group(1).replace(",", ".")) if match else None
 
 
 def parse_proof(value: str | None) -> float | None:
     if not value:
         return None
-    match = re.search(r"(\d+(?:\.\d+)?)\s*proof", value, re.IGNORECASE)
-    return float(match.group(1)) if match else None
+    match = re.search(r"(\d+(?:[.,]\d+)?)\s*proof", value, re.IGNORECASE)
+    return float(match.group(1).replace(",", ".")) if match else None
 
 
 def parse_volume_ml(value: str | None) -> float | None:
     if not value:
         return None
     match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(fl(?:uid)?\.?\s*oz(?:\.|s)?|fluid ounces?|"
+        r"(\d+(?:[.,]\d+)?)\s*(fl(?:uid)?\.?\s*oz(?:\.|s)?|fluid ounces?|"
         r"pints?|pts?\.?|quarts?|qts?\.?|gallons?|gals?\.?|ml|"
-        r"millilit(?:er|re)s?|l|lit(?:er|re)s?)\b",
+        r"millilit(?:er|re)s?|cl|centilit(?:er|re)s?|l|lit(?:er|re)s?)\b",
         value,
         re.IGNORECASE,
     )
     if not match:
         return None
-    amount = float(match.group(1))
+    amount = float(match.group(1).replace(",", "."))
     unit = re.sub(r"[.\s]", "", match.group(2).lower())
     factors_ml = {
         "ml": 1,
@@ -235,6 +258,11 @@ def parse_volume_ml(value: str | None) -> float | None:
         "milliliters": 1,
         "millilitre": 1,
         "millilitres": 1,
+        "cl": 10,
+        "centiliter": 10,
+        "centiliters": 10,
+        "centilitre": 10,
+        "centilitres": 10,
         "l": 1000,
         "liter": 1000,
         "liters": 1000,
@@ -550,13 +578,16 @@ def build_review(
         attach_guidance(check, application.beverage_type)
 
     statuses = {check.status for check in checks}
+    comparison_statuses = {
+        check.status for check in checks if check.key != "government_warning"
+    }
     if "mismatch" in statuses:
         overall_status = "attention"
         summary = (
             "The automated screen found one or more differences. "
             "A reviewer must verify the label and applicable requirements before acting."
         )
-    elif "review" in statuses:
+    elif "review" in comparison_statuses:
         overall_status = "unable"
         summary = (
             "The automated screen could not verify one or more fields. "

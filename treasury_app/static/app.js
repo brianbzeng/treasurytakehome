@@ -157,8 +157,8 @@ function renderResult(result) {
 
   const list = element("div", "check-list");
   result.checks.forEach((check) => list.append(renderCheck(check)));
-  const override = renderOverrideControl(result);
-  resultRegion.replaceChildren(header, disclaimer, list, override);
+  const continueControl = renderContinueControl();
+  resultRegion.replaceChildren(header, disclaimer, list, continueControl);
   resultRegion.classList.remove("hidden");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   resultRegion.scrollIntoView({
@@ -206,54 +206,17 @@ function externalLink(url, label) {
   return link;
 }
 
-function renderOverrideControl(result, compact = false) {
-  const control = element("section", compact ? "override-control compact" : "override-control");
-  if (result.overall_status === "match") {
-    control.append(
-      element(
-        "p",
-        "override-note",
-        "No reviewer override is needed for this automated match. This prototype does not submit an application to TTB.",
-      ),
-    );
-    return control;
-  }
-
-  if (result.reviewer_override) {
-    control.append(...overrideConfirmation(result, compact));
-    return control;
-  }
-
-  const button = element("button", "secondary-button override-button", "Continue to application anyway");
-  button.type = "button";
-  button.addEventListener("click", () => {
-    result.reviewer_override = true;
-    control.replaceChildren(...overrideConfirmation(result, compact));
-  });
-  control.append(button);
-  if (!compact) {
-    control.append(
-      element(
-        "p",
-        "override-note",
-        "Records a reviewer override in this browser only. It does not approve, reject, or transmit the application.",
-      ),
-    );
-  }
-  return control;
-}
-
-function overrideConfirmation(result, compact) {
-  const notice = element(
-    "p",
-    "override-confirmation",
-    "Reviewer override recorded. The automated result remains advisory and requires normal review procedures.",
+function renderContinueControl() {
+  const control = element("section", "override-control");
+  control.append(
+    externalLink(colasOnlineUrl, "Continue to application (external)"),
+    element(
+      "p",
+      "override-note",
+      "This prototype does not approve, reject, or transmit an application to TTB.",
+    ),
   );
-  const link = externalLink(colasOnlineUrl, compact ? "Open COLAs Online" : "Open COLAs Online to continue (external)");
-  if (!compact) {
-    return [notice, link, element("p", "override-note", "This prototype has not sent any application data to TTB.")];
-  }
-  return [notice, link];
+  return control;
 }
 
 function addDetail(list, name, value) {
@@ -302,6 +265,7 @@ qs("#batch-form").addEventListener("submit", async (event) => {
   hideError(error);
   batchResults = [];
   qs("#batch-result-body").replaceChildren();
+  qs("#batch-completion").classList.add("hidden");
 
   try {
     const csvFile = qs("#batch-csv").files[0];
@@ -441,6 +405,7 @@ async function processBatch(rows, imagesByName) {
   } finally {
     button.disabled = false;
     button.textContent = "Start batch review";
+    renderBatchCompletion();
   }
 }
 
@@ -464,19 +429,16 @@ function appendBatchRow(result) {
     renderPossibleIssues(result),
     element("td", "", result.summary),
     element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
-    renderBatchAction(result),
   );
   qs("#batch-result-body").append(row);
 }
 
-function renderBatchAction(result) {
-  const cell = document.createElement("td");
-  cell.append(renderOverrideControl(result, true));
-  return cell;
-}
-
 function renderPossibleIssues(result) {
   const cell = document.createElement("td");
+  if (result.overall_status === "match") {
+    cell.append(element("p", "no-issues", "No discrepancies identified."));
+    return cell;
+  }
   const checks = (result.checks || []).filter((check) => check.status !== "match");
   if (!checks.length) {
     cell.append(element("p", "no-issues", "No discrepancies identified."));
@@ -495,6 +457,38 @@ function renderPossibleIssues(result) {
   });
   cell.append(list);
   return cell;
+}
+
+function formatApplicationIds(results) {
+  const ids = results.map((result) => result.application_id || "an application");
+  if (ids.length === 1) return ids[0];
+  if (ids.length === 2) return `${ids[0]} and ${ids[1]}`;
+  return `${ids.slice(0, -1).join(", ")}, and ${ids.at(-1)}`;
+}
+
+function renderBatchCompletion() {
+  if (!batchResults.length) return;
+  const discrepancies = batchResults.filter((result) => result.overall_status === "attention");
+  const uncertain = batchResults.filter((result) => result.overall_status === "unable");
+  const copy = [];
+
+  if (discrepancies.length) {
+    copy.push(
+      `Applications ${formatApplicationIds(discrepancies)} ${discrepancies.length === 1 ? "has" : "have"} discrepancies.`,
+    );
+  }
+  if (uncertain.length) {
+    copy.push(
+      `Applications ${formatApplicationIds(uncertain)} ${uncertain.length === 1 ? "requires" : "require"} human review because the automated screen could not verify all supplied values.`,
+    );
+  }
+  if (!copy.length) {
+    copy.push(`All ${batchResults.length} applications matched the supplied application data.`);
+  }
+  copy.push("You can continue to applications when ready.");
+
+  qs("#batch-completion-copy").textContent = copy.join(" ");
+  qs("#batch-completion").classList.remove("hidden");
 }
 
 function possibleIssuesForExport(result) {
@@ -518,14 +512,13 @@ function guidanceLinksForExport(result) {
 
 qs("#export-results").addEventListener("click", () => {
   const rows = [
-    ["application_id", "status", "possible_issues", "guidance", "guidance_links", "reviewer_override", "processing_ms"],
+    ["application_id", "status", "possible_issues", "guidance", "guidance_links", "processing_ms"],
     ...batchResults.map((result) => [
       result.application_id || "",
       result.overall_status,
       possibleIssuesForExport(result),
       result.summary,
       guidanceLinksForExport(result),
-      result.reviewer_override ? "yes" : "no",
       result.processing_ms ?? "",
     ]),
   ];

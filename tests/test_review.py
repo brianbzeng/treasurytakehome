@@ -38,6 +38,8 @@ def test_normalization_handles_case_and_punctuation():
     )
     assert normalize_country("Product of Mexico") == "mexico"
     assert normalize_country("USA") == "united states"
+    assert normalize_country("Italia") == "italy"
+    assert normalize_country("Montà - Piemonte - Italia") == "italy"
 
 
 def test_brand_company_suffix_variant_is_matching_evidence():
@@ -61,11 +63,14 @@ def test_brand_company_suffix_variant_is_matching_evidence():
 def test_numeric_parsers():
     label = "45% Alc./Vol. (90 Proof)"
     assert parse_abv(label) == 45
+    assert parse_abv("12,5% vol.") == 12.5
     assert parse_proof(label) == 90
     assert parse_volume_ml("0.75 L") == 750
     assert parse_volume_ml("750 milliliters") == 750
     assert abs(parse_volume_ml("16 fl oz") - parse_volume_ml("1 pint")) < 0.01
     assert abs(parse_volume_ml("1 quart") - parse_volume_ml("32 fluid ounces")) < 0.01
+    assert parse_volume_ml("75 cL ℮") == 750
+    assert parse_volume_ml("1,5 l e") == 1500
 
 
 def test_matching_extraction_passes_all_checks():
@@ -228,7 +233,7 @@ def test_warning_boldness_does_not_affect_the_automated_screen():
     assert result.overall_status == "match"
 
 
-def test_missing_warning_heading_routes_to_human_review():
+def test_missing_warning_heading_does_not_block_a_matching_application():
     extraction = mock_extraction()
     extraction.government_warning.heading_text = None
     extraction.government_warning.verbatim_text = None
@@ -243,7 +248,7 @@ def test_missing_warning_heading_routes_to_human_review():
     )
     assert warning.status == "review"
     assert warning.observed == "Government warning heading not confidently located."
-    assert result.overall_status == "unable"
+    assert result.overall_status == "match"
 
 
 def test_low_confidence_routes_to_human_review():

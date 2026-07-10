@@ -102,6 +102,7 @@
                          min="0.1" step="0.1" inputmode="decimal" required value="750">
                   <select id="net-contents-unit" name="net_contents_unit" aria-label="Total bottle capacity unit">
                     <option value="mL" selected>mL</option>
+                    <option value="cL">cL</option>
                     <option value="L">L</option>
                     <option value="fl oz">fl oz</option>
                     <option value="pint">pint</option>
@@ -213,12 +214,20 @@
                   <th scope="col">Review findings</th>
                   <th scope="col">Guidance</th>
                   <th scope="col">Time</th>
-                  <th scope="col">Reviewer action</th>
                 </tr>
               </thead>
               <tbody id="batch-result-body"></tbody>
             </table>
           </div>
+          <section id="batch-completion" class="batch-completion hidden" aria-live="polite">
+            <h3>Batch summary</h3>
+            <p id="batch-completion-copy"></p>
+            <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
+               target="_blank" rel="noopener noreferrer">
+              Continue to applications (external)
+            </a>
+            <p class="override-note">This prototype does not submit application data to TTB.</p>
+          </section>
         </section>
       </section>
     </main>
