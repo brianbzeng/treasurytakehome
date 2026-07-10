@@ -1,31 +1,29 @@
 # TTB Label Review Assistant
 
 A lightweight proof of concept that helps Alcohol and Tobacco Tax and Trade
-Bureau (TTB) reviewers compare label artwork with application data for
-distilled spirits, wine, and malt beverages. The application uses Xiaomi MiMo for visual text extraction and
-deterministic Python rules for every displayed match decision.
+Bureau (TTB) reviewers screen label artwork for possible review items across
+distilled spirits, wine, and malt beverages. The application uses Xiaomi MiMo
+for visual text extraction and deterministic Python rules to present cautious,
+evidence-based observations.
 
 > This prototype is decision support only. It does not issue Certificates of
 > Label Approval or replace review by an authorized TTB specialist.
 
 ## What the baseline supports
 
-- Review one application with up to four label images.
-- Review a CSV batch with progressive results and bounded concurrency.
+- Screen one to 100 label images without requiring a CSV or typed application data.
+- Process label images progressively with two concurrent requests and per-label retries.
 - Extract label fields through the multimodal `mimo-v2.5` API.
-- Select a distilled-spirit, wine, or malt-beverage review profile.
-- Compare brand, class/type, ABV (when supplied), proof for distilled spirits,
-  net contents, producer information, country of origin, and the government warning.
-- Explain every result with expected values, observed values, and confidence.
+- Identify the beverage profile and visible brand, class/type, alcohol statement,
+  proof, net contents, producer/importer, country of origin, and government-warning heading.
+- Explain possible review items with observed label evidence and confidence.
 - Route uncertain or unreadable evidence to a human instead of guessing.
-- Present mismatches as possible issues for reviewer verification, never as a
-  final compliance determination.
-- Verify text fields by locating the application value in the label artwork
-  instead of asking the model to independently classify competing marketing text.
+- Never call a result a mismatch or a final compliance determination because no
+  application record is submitted with the label image.
 - Link each possible issue to the focused TTB guidance page and summarize the
   relevant topic for the reviewer.
-- Let a reviewer record a local, browser-only override and open COLAs Online;
-  the prototype never approves or transmits an application.
+- Provide a save/print view and a link to COLAs Online; the prototype never
+  approves or transmits an application.
 - Run without OpenCV, PaddleOCR, Redis, or persistent file storage.
 
 The original take-home prompt is preserved in
@@ -35,20 +33,19 @@ The original take-home prompt is preserved in
 
 ```text
 Browser
-  ├─ single form
-  └─ batch coordinator (two concurrent items)
+  └─ label-only batch coordinator (two concurrent items)
           ↓ multipart upload
 Flask / Gunicorn
   ├─ input validation
   ├─ MiMo provider adapter
   ├─ Pydantic response validation
-  └─ commodity-specific deterministic comparisons
+  └─ commodity-aware label-only screening
           ↓
-Evidence-based result (Matches / Needs attention / Unable to verify)
+Evidence-based result (No possible review items / Possible review items / Unable to verify)
 ```
 
-The model extracts observations only. It never chooses the final status. This
-separation makes the compliance logic inspectable, testable, and replaceable.
+The model extracts observations only. Deterministic rules convert them into
+cautious review leads; neither layer makes a final compliance determination.
 
 ## Local setup
 
@@ -92,27 +89,17 @@ the interface. It is disabled unless explicitly configured.
 | `MIMO_MODEL` | `mimo-v2.5` | Vision-capable model |
 | `MIMO_TIMEOUT_SECONDS` | `25` | Upstream request timeout |
 | `AI_PROVIDER` | `mimo` | Set to `mock` only for local demonstration |
-| `MAX_UPLOAD_MB` | `12` | Total request upload limit |
+| `MAX_UPLOAD_MB` | `12` | Per-label-image request upload limit |
 
 MiMo receives images as Base64 data URLs. Uploaded images are not written to
 the application filesystem or database.
 
-## Batch CSV format
+## Label-only screening
 
-Download the template from the Batch review screen or create a UTF-8 CSV with:
-
-```csv
-id,beverage_type,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
-APP-001,distilled_spirits,Old Tom Distillery,Kentucky Straight Bourbon Whiskey,45,90,750 mL,"Old Tom Distillery, Louisville KY",,old-tom-front.jpg
-```
-
-`beverage_type` may be `distilled_spirits`, `wine`, or `malt_beverage`; omitted
-values remain backward-compatible as `distilled_spirits`. `proof` and
-`country_of_origin` may be blank. Wine and malt-beverage rows may leave `abv`
-blank when the application does not supply it. Each row currently references one
-image. The browser submits at most two rows concurrently and displays results
-as they finish. Closing the browser stops an in-progress batch; a durable job
-queue is intentionally deferred from this baseline.
+Choose one to 100 JPEG, PNG, or WebP images. Each uploaded file is screened as
+one label. The browser sends at most two requests at once, shows results as they
+finish, and lets the reviewer retry only a label that the image service could
+not process. The app does not persist uploaded images or application data.
 
 ## Testing
 

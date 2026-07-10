@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from treasury_app.models import (
     ApplicationData,
+    BeverageType,
     ExtractedField,
     LabelExtraction,
     WarningObservation,
@@ -35,6 +36,21 @@ EXTRACTED_FIELD_NAMES = (
     "producer_name_address",
     "country_of_origin",
 )
+
+
+def _beverage_type(value: object) -> BeverageType | None:
+    if not isinstance(value, str):
+        return None
+    aliases: dict[str, BeverageType] = {
+        "distilled_spirits": "distilled_spirits",
+        "distilled spirits": "distilled_spirits",
+        "spirits": "distilled_spirits",
+        "wine": "wine",
+        "malt_beverage": "malt_beverage",
+        "malt beverage": "malt_beverage",
+        "beer": "malt_beverage",
+    }
+    return aliases.get(value.strip().casefold())
 
 
 def _optional_text(value: object) -> str | None:
@@ -140,6 +156,7 @@ def parse_extraction_response(message: str) -> LabelExtraction:
     }
     normalized.update(
         {
+            "beverage_type": _beverage_type(payload.get("beverage_type")),
             "government_warning": _warning_payload(payload.get("government_warning")),
             "raw_text": _optional_text(payload.get("raw_text")),
             "notes": notes,
@@ -158,6 +175,9 @@ class ExtractionProvider(Protocol):
     ) -> LabelExtraction:
         """Extract structured observations from label images."""
 
+    def screen(self, images: list["ImageInput"]) -> LabelExtraction:
+        """Extract label-only observations without application data."""
+
 
 @dataclass(frozen=True)
 class ImageInput:
@@ -174,6 +194,12 @@ The application identifies the beverage type as distilled spirits, wine, or
 malt beverage. Use that profile only to interpret the requested evidence:
 proof applies only to distilled spirits, so return null for proof on wine and
 malt beverage labels. Do not infer a commodity-specific compliance decision.
+
+For a label-only screen, no application candidates are supplied. Identify the
+beverage_type as exactly `distilled_spirits`, `wine`, `malt_beverage`, or null,
+then extract the most clearly visible value for each field. Set
+expected_value_found to null in this mode. Do not claim that a legal statement
+is absent or noncompliant; return null when a value is not confidently visible.
 
 You will receive expected text candidates from an application for the brand,
 class/type, producer/address, and possibly country of origin. Your role for
@@ -221,6 +247,7 @@ present. Do not provide a compliance verdict.
 
 Use exactly this object shape:
 {
+  "beverage_type": "distilled_spirits"|"wine"|"malt_beverage"|null,
   "brand_name": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "class_type": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
   "alcohol_content": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
@@ -319,11 +346,7 @@ class MiMoProvider:
             raise IndexError("The image service returned an empty response.")
         return message
 
-    def extract(
-        self,
-        images: list[ImageInput],
-        application: ApplicationData,
-    ) -> LabelExtraction:
+    def _image_content(self, images: list[ImageInput]) -> list[dict]:
         content: list[dict] = []
         for image in images:
             encoded = base64.b64encode(image.content).decode("ascii")
@@ -335,25 +358,9 @@ class MiMoProvider:
                     },
                 }
             )
-        content.append(
-            {
-                "type": "text",
-                "text": (
-                    "Extract the requested evidence from these views of one "
-                    "product label. Return one combined JSON object.\n\n"
-                    "Expected text candidates to locate (these are search "
-                    "targets, not text to repeat unless visible):\n"
-                    f"- Beverage type: {application.beverage_type.replace('_', ' ')}\n"
-                    f"- Brand name: {application.brand_name}\n"
-                    f"- Class or type: {application.class_type}\n"
-                    f"- Producer name and address: "
-                    f"{application.producer_name_address}\n"
-                    f"- Country of origin: "
-                    f"{application.country_of_origin or 'Not applicable'}"
-                ),
-            }
-        )
+        return content
 
+    def _extract_content(self, content: list[dict]) -> LabelExtraction:
         try:
             invalid_response: Exception | None = None
             for attempt, repair in enumerate((False, True), start=1):
@@ -386,6 +393,47 @@ class MiMoProvider:
                 message = "The image service could not process this label."
             raise ProviderError(message) from exc
 
+    def extract(
+        self,
+        images: list[ImageInput],
+        application: ApplicationData,
+    ) -> LabelExtraction:
+        content = self._image_content(images)
+        content.append(
+            {
+                "type": "text",
+                "text": (
+                    "Extract the requested evidence from these views of one "
+                    "product label. Return one combined JSON object.\n\n"
+                    "Expected text candidates to locate (these are search "
+                    "targets, not text to repeat unless visible):\n"
+                    f"- Beverage type: {application.beverage_type.replace('_', ' ')}\n"
+                    f"- Brand name: {application.brand_name}\n"
+                    f"- Class or type: {application.class_type}\n"
+                    f"- Producer name and address: "
+                    f"{application.producer_name_address}\n"
+                    f"- Country of origin: "
+                    f"{application.country_of_origin or 'Not applicable'}"
+                ),
+            }
+        )
+        return self._extract_content(content)
+
+    def screen(self, images: list[ImageInput]) -> LabelExtraction:
+        content = self._image_content(images)
+        content.append(
+            {
+                "type": "text",
+                "text": (
+                    "Screen this single alcohol-beverage label without application "
+                    "data. Identify the beverage profile and transcribe only clearly "
+                    "visible common label information. Return null for anything that "
+                    "is not confidently visible; do not make a compliance decision."
+                ),
+            }
+        )
+        return self._extract_content(content)
+
 
 class MockProvider:
     name = "Mock provider"
@@ -396,6 +444,7 @@ class MockProvider:
         application: ApplicationData,
     ) -> LabelExtraction:
         return LabelExtraction(
+            beverage_type="distilled_spirits",
             brand_name=ExtractedField(
                 value="OLD TOM DISTILLERY",
                 evidence="OLD TOM DISTILLERY",
@@ -443,4 +492,16 @@ class MockProvider:
             ),
             raw_text="Mock development extraction",
             notes=["Mock mode is active; no image analysis was performed."],
+        )
+
+    def screen(self, images: list[ImageInput]) -> LabelExtraction:
+        return self.extract(
+            images,
+            ApplicationData(
+                brand_name="Old Tom Distillery",
+                class_type="Kentucky Straight Bourbon Whiskey",
+                abv=45,
+                net_contents="750 mL",
+                producer_name_address="Old Tom Distillery, Louisville KY",
+            ),
         )

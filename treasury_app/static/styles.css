@@ -286,13 +286,13 @@ footer { padding: 1.5rem; text-align: center; color: var(--muted); border-top: 1
   @page { margin: .45in; }
   :root { font-size: 11px; background: var(--white); }
   body { background: var(--white); }
-  .site-header, .mock-banner, .intro, .mode-switcher, #single-panel,
-  #batch-panel > .form-card, #batch-progress, #print-results, footer,
+  .site-header, .mock-banner, .intro, #screen-panel, #screen-progress,
+  #print-results, footer,
   .batch-completion .secondary-button, .batch-retry {
     display: none !important;
   }
   .page-shell { max-width: none; padding: 0; }
-  #batch-panel, #batch-results { display: block !important; }
+  #screen-results { display: block !important; }
   .result-region { margin: 0; padding: 0; border: 0; box-shadow: none; }
   .batch-result-heading { display: block; }
   .batch-advisory { margin-top: .5rem; }

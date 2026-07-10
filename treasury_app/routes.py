@@ -17,12 +17,13 @@ from treasury_app.services.providers import (
     MockProvider,
     ProviderError,
 )
-from treasury_app.services.review import build_review
+from treasury_app.services.review import build_label_screen, build_review
 
 bp = Blueprint("main", __name__)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGES = 4
+MAX_SCREEN_IMAGES = 1
 
 
 def has_valid_image_signature(content: bytes, mime_type: str) -> bool:
@@ -73,6 +74,7 @@ def index():
     return render_template(
         "index.html",
         mock_mode=current_app.config["AI_PROVIDER"] == "mock",
+        max_upload_mb=current_app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024),
     )
 
 
@@ -143,6 +145,55 @@ def review_label():
         extraction = provider.extract(images, application)
         result = build_review(
             application,
+            extraction,
+            provider_name=provider.name,
+        )
+        result.processing_ms = round((time.perf_counter() - started) * 1000)
+        return jsonify(result.model_dump())
+    except ProviderError as exc:
+        return _error(str(exc), 503)
+
+
+@bp.post("/api/screen")
+def screen_label():
+    """Screen one uploaded label without applicant-supplied comparison data."""
+    started = time.perf_counter()
+    uploads = [file for file in request.files.getlist("image") if file.filename]
+    if not uploads:
+        return _error("Add one label image.", 400)
+    if len(uploads) > MAX_SCREEN_IMAGES:
+        return _error("Upload one image for each label screening item.", 400)
+
+    upload = uploads[0]
+    if upload.mimetype not in ALLOWED_IMAGE_TYPES:
+        return _error(
+            f"{upload.filename} is not a supported JPEG, PNG, or WebP image.",
+            415,
+        )
+    content = upload.read()
+    if not content:
+        return _error(f"{upload.filename} is empty.", 400)
+    if not has_valid_image_signature(content, upload.mimetype):
+        return _error(
+            f"{upload.filename} does not contain a valid "
+            f"{upload.mimetype.removeprefix('image/').upper()} image.",
+            415,
+        )
+
+    label_id = request.form.get("label_id", upload.filename).strip()[:200]
+    if not label_id:
+        label_id = upload.filename
+    image = ImageInput(
+        content=content,
+        mime_type=upload.mimetype,
+        filename=upload.filename,
+    )
+
+    try:
+        provider = get_provider()
+        extraction = provider.screen([image])
+        result = build_label_screen(
+            label_id,
             extraction,
             provider_name=provider.name,
         )

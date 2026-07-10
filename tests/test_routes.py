@@ -25,12 +25,54 @@ def test_index_is_accessible(client):
     assert b"TTB Label Review Assistant" in response.data
     assert b"Mock mode is active" in response.data
     assert b"AI-assisted guidance only" in response.data
+    assert b"Choose one to 100 images" in response.data
+    assert b"CSV manifest" not in response.data
 
 
 def test_health_reports_provider(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json == {"status": "ok", "provider_configured": True}
+
+
+def test_label_only_screen_returns_possible_review_result(client):
+    response = client.post(
+        "/api/screen",
+        data={
+            "label_id": "example-label.jpg",
+            "image": (io.BytesIO(JPEG_BYTES), "label.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    assert response.json["label_id"] == "example-label.jpg"
+    assert response.json["overall_status"] == "match"
+    assert response.json["beverage_type"] == "distilled_spirits"
+    assert all(check["status"] != "mismatch" for check in response.json["checks"])
+
+
+def test_label_only_screen_requires_one_supported_image(client):
+    missing = client.post("/api/screen", data={}, content_type="multipart/form-data")
+    assert missing.status_code == 400
+
+    unsupported = client.post(
+        "/api/screen",
+        data={"image": (io.BytesIO(b"not an image"), "label.txt", "text/plain")},
+        content_type="multipart/form-data",
+    )
+    assert unsupported.status_code == 415
+
+    multiple = client.post(
+        "/api/screen",
+        data={
+            "image": [
+                (io.BytesIO(JPEG_BYTES), "one.jpg", "image/jpeg"),
+                (io.BytesIO(JPEG_BYTES), "two.jpg", "image/jpeg"),
+            ]
+        },
+        content_type="multipart/form-data",
+    )
+    assert multiple.status_code == 400
 
 
 def test_review_endpoint_returns_evidence_based_result(client):

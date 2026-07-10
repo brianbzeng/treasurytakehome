@@ -10,6 +10,7 @@ from treasury_app.models import (
     BeverageType,
     ExtractedField,
     LabelExtraction,
+    LabelScreenResult,
     ReviewCheck,
     ReviewResult,
 )
@@ -603,6 +604,172 @@ def build_review(
 
     return ReviewResult(
         application_id=application.application_id,
+        overall_status=overall_status,
+        summary=summary,
+        checks=checks,
+        notes=extraction.notes,
+        provider=provider_name,
+    )
+
+
+def screen_presence_check(
+    *,
+    key: str,
+    label: str,
+    field: ExtractedField,
+    required_for_screen: bool,
+) -> ReviewCheck:
+    """Report visible evidence without claiming a legal compliance conclusion."""
+    observed = field.evidence or field.value
+    if observed:
+        status = "match" if field.confidence >= MIN_CONFIDENCE else "review"
+        explanation = (
+            "A visible value was located on the label."
+            if status == "match"
+            else "A possible value was located, but image-reading confidence is low."
+        )
+        return ReviewCheck(
+            key=key,
+            label=label,
+            status=status,
+            expected=None,
+            observed=observed,
+            explanation=explanation,
+            evidence=field.evidence,
+            confidence=field.confidence,
+        )
+
+    if required_for_screen:
+        return ReviewCheck(
+            key=key,
+            label=label,
+            status="review",
+            expected=None,
+            observed="Not confidently located",
+            explanation=(
+                "This common label statement was not confidently located. "
+                "Verify whether it is required and present before acting."
+            ),
+            evidence=field.evidence,
+            confidence=field.confidence,
+        )
+
+    return ReviewCheck(
+        key=key,
+        label=label,
+        status="match",
+        expected=None,
+        observed="Not assessed",
+        explanation="This item is not automatically screened as required for this label.",
+        evidence=field.evidence,
+        confidence=field.confidence,
+    )
+
+
+def build_label_screen(
+    label_id: str,
+    extraction: LabelExtraction,
+    *,
+    provider_name: str,
+) -> LabelScreenResult:
+    """Build cautious, label-only screening results with no application comparison."""
+    beverage_type = extraction.beverage_type
+    checks = [
+        screen_presence_check(
+            key="brand_name",
+            label="Brand name",
+            field=extraction.brand_name,
+            required_for_screen=True,
+        ),
+        screen_presence_check(
+            key="class_type",
+            label="Class or type designation",
+            field=extraction.class_type,
+            required_for_screen=True,
+        ),
+        screen_presence_check(
+            key="abv",
+            label="Alcohol by volume",
+            field=extraction.alcohol_content,
+            required_for_screen=beverage_type == "distilled_spirits",
+        ),
+        screen_presence_check(
+            key="proof",
+            label="Proof",
+            field=extraction.proof,
+            required_for_screen=False,
+        ),
+        screen_presence_check(
+            key="net_contents",
+            label="Total bottle capacity",
+            field=extraction.net_contents,
+            required_for_screen=True,
+        ),
+        screen_presence_check(
+            key="producer",
+            label="Producer, bottler, or importer statement",
+            field=extraction.producer_name_address,
+            required_for_screen=True,
+        ),
+        screen_presence_check(
+            key="country_of_origin",
+            label="Country of origin",
+            field=extraction.country_of_origin,
+            required_for_screen=False,
+        ),
+    ]
+
+    warning = extraction.government_warning
+    warning_source = " ".join(
+        part for part in (warning.heading_text, warning.verbatim_text, warning.evidence) if part
+    )
+    warning_detected = bool(
+        re.search(r"\bgovernment\s+warning\b", warning_source, re.IGNORECASE)
+    )
+    checks.append(
+        ReviewCheck(
+            key="government_warning",
+            label="Government warning",
+            status="match" if warning_detected else "review",
+            expected=None,
+            observed=(
+                "Government warning heading detected."
+                if warning_detected
+                else "Not confidently located"
+            ),
+            explanation=(
+                "The warning heading was located. Typography, wording, placement, and "
+                "legibility remain human-review items."
+                if warning_detected
+                else "The warning heading was not confidently located. Verify whether it is "
+                "required and present before acting."
+            ),
+            evidence=warning.evidence,
+            confidence=warning.confidence,
+        )
+    )
+
+    if beverage_type is not None:
+        for check in checks:
+            attach_guidance(check, beverage_type)
+
+    has_review_items = any(check.status == "review" for check in checks)
+    if has_review_items:
+        overall_status = "attention"
+        summary = (
+            "The automated screen found one or more possible review items. "
+            "Verify the label artwork and applicable requirements before acting."
+        )
+    else:
+        overall_status = "match"
+        summary = (
+            "No possible review items were identified from the visible label information. "
+            "This is not an approval or final determination."
+        )
+
+    return LabelScreenResult(
+        label_id=label_id,
+        beverage_type=beverage_type,
         overall_status=overall_status,
         summary=summary,
         checks=checks,

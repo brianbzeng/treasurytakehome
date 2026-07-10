@@ -1,63 +1,15 @@
 const qs = (selector, root = document) => root.querySelector(selector);
-const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
 
-const singleTab = qs("#single-tab");
-const batchTab = qs("#batch-tab");
-const singlePanel = qs("#single-panel");
-const batchPanel = qs("#batch-panel");
-const reviewForm = qs("#review-form");
-const resultRegion = qs("#single-result");
-const formError = qs("#form-error");
-const reviewButton = qs("#review-button");
+const MAX_BATCH_LABELS = 100;
+const screenForm = qs("#screen-form");
 const imageInput = qs("#label-images");
 const selectedFiles = qs("#selected-files");
-const beverageTypeInput = qs("#beverage-type");
-const abvInput = qs("#abv");
-const proofField = qs("#proof-field");
-const abvOptional = qs("#abv-optional");
-const beverageProfileHint = qs("#beverage-profile-hint");
+const screenError = qs("#screen-error");
+const screenButton = qs("#screen-button");
+const maxImageBytes = Number(qs("#main-content").dataset.maxUploadMb) * 1024 * 1024;
+const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-let batchResults = [];
-const colasOnlineUrl = "https://www.ttbonline.gov/colasonline/";
-
-const beverageProfileCopy = {
-  distilled_spirits: "Proof is reviewed only for distilled spirits.",
-  wine: "Alcohol by volume may be optional for some wine labels; leave it blank only when the application does not supply it.",
-  malt_beverage: "Alcohol by volume may be optional for some malt beverage labels; leave it blank only when the application does not supply it.",
-};
-
-function applyBeverageProfile() {
-  const isDistilledSpirit = beverageTypeInput.value === "distilled_spirits";
-  proofField.classList.toggle("hidden", !isDistilledSpirit);
-  abvInput.required = isDistilledSpirit;
-  abvOptional.textContent = isDistilledSpirit ? "" : "(optional)";
-  beverageProfileHint.textContent = beverageProfileCopy[beverageTypeInput.value];
-}
-
-beverageTypeInput.addEventListener("change", applyBeverageProfile);
-applyBeverageProfile();
-
-function selectMode(mode) {
-  const isSingle = mode === "single";
-  singleTab.classList.toggle("active", isSingle);
-  batchTab.classList.toggle("active", !isSingle);
-  singleTab.setAttribute("aria-selected", String(isSingle));
-  batchTab.setAttribute("aria-selected", String(!isSingle));
-  singlePanel.classList.toggle("hidden", !isSingle);
-  batchPanel.classList.toggle("hidden", isSingle);
-  (isSingle ? singleTab : batchTab).focus();
-}
-
-singleTab.addEventListener("click", () => selectMode("single"));
-batchTab.addEventListener("click", () => selectMode("batch"));
-qsa(".mode-button").forEach((button) => {
-  button.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      selectMode(button === singleTab ? "batch" : "single");
-    }
-  });
-});
+let screeningResults = [];
 
 imageInput.addEventListener("change", () => {
   selectedFiles.replaceChildren(
@@ -74,162 +26,6 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function applicationFromForm(form) {
-  const data = new FormData(form);
-  return {
-    application_id: null,
-    beverage_type: data.get("beverage_type"),
-    brand_name: data.get("brand_name"),
-    class_type: data.get("class_type"),
-    abv: data.get("abv") ? Number(data.get("abv")) : null,
-    proof: data.get("beverage_type") === "distilled_spirits" && data.get("proof")
-      ? Number(data.get("proof"))
-      : null,
-    net_contents: `${data.get("net_contents_value")} ${data.get("net_contents_unit")}`,
-    producer_name_address: data.get("producer_name_address"),
-    country_of_origin: data.get("country_of_origin") || null,
-  };
-}
-
-async function submitReview(application, images) {
-  const payload = new FormData();
-  payload.append("application", JSON.stringify(application));
-  images.forEach((image) => payload.append("images", image));
-  const response = await fetch("/api/review", { method: "POST", body: payload });
-  const body = await response.json().catch(() => ({
-    error: "The server returned an unreadable response.",
-  }));
-  if (!response.ok) throw new Error(body.error || "The review could not be completed.");
-  return body;
-}
-
-reviewForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  hideError(formError);
-  resultRegion.classList.add("hidden");
-
-  if (imageInput.files.length > 4) {
-    return showError(formError, "Choose no more than four label images.");
-  }
-
-  reviewButton.disabled = true;
-  reviewButton.textContent = "Reviewing label…";
-  try {
-    const result = await submitReview(
-      applicationFromForm(reviewForm),
-      [...imageInput.files],
-    );
-    renderResult(result);
-  } catch (error) {
-    showError(formError, error.message);
-  } finally {
-    reviewButton.disabled = false;
-    reviewButton.textContent = "Review this label";
-  }
-});
-
-function renderResult(result) {
-  const statusCopy = {
-    match: ["Matches application", "All checks matched"],
-    attention: ["Needs attention", "A difference was found"],
-    unable: ["Human review required", "Some evidence is uncertain"],
-  };
-  const [heading, shortStatus] = statusCopy[result.overall_status];
-
-  const header = element("div", `result-header ${result.overall_status}`);
-  const title = element("h2", "", heading);
-  title.id = "result-heading";
-  header.append(
-    title,
-    element("p", "", result.summary),
-    element(
-      "p",
-      "result-meta",
-      `${shortStatus} · ${result.processing_ms} ms · ${result.provider}`,
-    ),
-  );
-
-  const disclaimer = element(
-    "p",
-    "advisory result-disclaimer",
-    "Automated findings are AI-assisted guidance only. They may be incorrect or incomplete; verify the label artwork and applicable requirements before acting.",
-  );
-
-  const list = element("div", "check-list");
-  result.checks.forEach((check) => list.append(renderCheck(check)));
-  const continueControl = renderContinueControl();
-  resultRegion.replaceChildren(header, disclaimer, list, continueControl);
-  resultRegion.classList.remove("hidden");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  resultRegion.scrollIntoView({
-    behavior: reduceMotion ? "auto" : "smooth",
-    block: "start",
-  });
-}
-
-function renderCheck(check) {
-  const statusNames = {
-    match: "Matches",
-    review: "Review",
-    mismatch: "Difference",
-  };
-  const card = element("article", `check-card ${check.status}`);
-  const heading = element("h3", "", check.label);
-  const status = element("p", "status-label", statusNames[check.status]);
-  const description = element("p", "", check.explanation);
-  const details = document.createElement("dl");
-  addDetail(details, "Expected", check.expected || "Not supplied");
-  addDetail(details, "Observed", check.observed || "Not confidently detected");
-  if (check.confidence !== null && check.confidence !== undefined) {
-    addDetail(details, "Confidence", `${Math.round(check.confidence * 100)}%`);
-  }
-  card.append(heading, status, description, details);
-  if (check.status !== "match" && check.guidance_url) {
-    const guidance = element("aside", "check-guidance");
-    guidance.append(
-      element("p", "guidance-kicker", "Relevant official guidance"),
-      externalLink(check.guidance_url, check.guidance_title || "Open TTB guidance"),
-    );
-    if (check.guidance_summary) {
-      guidance.append(element("p", "guidance-summary", check.guidance_summary));
-    }
-    card.append(guidance);
-  }
-  return card;
-}
-
-function externalLink(url, label) {
-  const link = element("a", "text-link", label);
-  link.href = url;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  return link;
-}
-
-function renderContinueControl() {
-  const control = element("section", "override-control");
-  control.append(
-    externalLink(colasOnlineUrl, "Continue to application (external)"),
-    element(
-      "p",
-      "override-note",
-      "This prototype does not approve, reject, or transmit an application to TTB.",
-    ),
-  );
-  return control;
-}
-
-function addDetail(list, name, value) {
-  list.append(element("dt", "", name), element("dd", "", value));
-}
-
-function element(tag, className = "", text = "") {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== "") node.textContent = text;
-  return node;
-}
-
 function showError(container, message) {
   container.textContent = message;
   container.classList.remove("hidden");
@@ -241,223 +37,169 @@ function hideError(container) {
   container.classList.add("hidden");
 }
 
-const templateHeaders = [
-  "id", "beverage_type", "brand_name", "class_type", "abv", "proof", "net_contents",
-  "producer_name_address", "country_of_origin", "image_filename",
-];
-const templateRow = [
-  "APP-001", "distilled_spirits", "Old Tom Distillery", "Kentucky Straight Bourbon Whiskey",
-  "45", "90", "750 mL", "Old Tom Distillery, Louisville KY", "",
-  "old-tom-front.jpg",
-];
-
-qs("#template-link").addEventListener("click", (event) => {
-  event.preventDefault();
-  downloadText(
-    "ttb-batch-template.csv",
-    `${templateHeaders.map(csvEscape).join(",")}\n${templateRow.map(csvEscape).join(",")}\n`,
-  );
-});
-
-qs("#batch-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const error = qs("#batch-error");
-  hideError(error);
-  batchResults = [];
-  qs("#batch-result-body").replaceChildren();
-  qs("#batch-completion").classList.add("hidden");
-
-  try {
-    const csvFile = qs("#batch-csv").files[0];
-    const imageFiles = [...qs("#batch-images").files];
-    const rows = parseCsv(await csvFile.text());
-    validateBatchRows(rows);
-    const imagesByName = new Map(imageFiles.map((file) => [file.name, file]));
-    for (const row of rows) {
-      if (!imagesByName.has(row.image_filename)) {
-        throw new Error(`Image not found for ${row.id}: ${row.image_filename}`);
-      }
-    }
-    await processBatch(rows, imagesByName);
-  } catch (problem) {
-    showError(error, problem.message);
-  }
-});
-
-function parseCsv(text) {
-  const matrix = [];
-  let row = [];
-  let field = "";
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (quoted) {
-      if (char === '"' && text[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        field += char;
-      }
-    } else if (char === '"') {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(field.trim());
-      field = "";
-    } else if (char === "\n") {
-      row.push(field.trim());
-      if (row.some(Boolean)) matrix.push(row);
-      row = [];
-      field = "";
-    } else if (char !== "\r") {
-      field += char;
-    }
-  }
-  row.push(field.trim());
-  if (row.some(Boolean)) matrix.push(row);
-  if (quoted) throw new Error("The CSV contains an unclosed quoted field.");
-  if (matrix.length < 2) throw new Error("The CSV must include a header and at least one row.");
-
-  const headers = matrix[0];
-  return matrix.slice(1).map((values) =>
-    Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])),
-  );
-}
-
-function validateBatchRows(rows) {
-  if (rows.length > 300) throw new Error("A batch may contain no more than 300 applications.");
-  rows.forEach((row, index) => {
-    for (const header of templateHeaders.filter((header) => header !== "beverage_type")) {
-      if (!(header in row)) throw new Error(`Missing required CSV column: ${header}`);
-    }
-    const beverageType = row.beverage_type || "distilled_spirits";
-    if (!Object.hasOwn(beverageProfileCopy, beverageType)) {
-      throw new Error(`Row ${index + 2} has an invalid beverage_type.`);
-    }
-    for (const field of ["id", "brand_name", "class_type", "net_contents", "producer_name_address", "image_filename"]) {
-      if (!row[field]) throw new Error(`Row ${index + 2} is missing ${field}.`);
-    }
-    if (beverageType === "distilled_spirits" && !row.abv) {
-      throw new Error(`Row ${index + 2} is missing ABV for a distilled spirit.`);
-    }
-    if (row.abv && !Number(row.abv)) throw new Error(`Row ${index + 2} has an invalid ABV.`);
+function screenItems(files) {
+  const seenNames = new Map();
+  return files.map((file) => {
+    const count = (seenNames.get(file.name) || 0) + 1;
+    seenNames.set(file.name, count);
+    return {
+      file,
+      labelId: count === 1 ? file.name : `${file.name} (${count})`,
+    };
   });
 }
 
-async function processBatch(rows, imagesByName) {
-  const progress = qs("#batch-progress");
-  const results = qs("#batch-results");
-  const button = qs("#batch-button");
+function validateFiles(files) {
+  if (!files.length) throw new Error("Choose at least one label image.");
+  if (files.length > MAX_BATCH_LABELS) {
+    throw new Error(`Choose no more than ${MAX_BATCH_LABELS} label images at a time.`);
+  }
+  for (const file of files) {
+    if (!allowedTypes.has(file.type)) {
+      throw new Error(`${file.name} is not a supported JPEG, PNG, or WebP image.`);
+    }
+    if (file.size > maxImageBytes) {
+      throw new Error(`${file.name} exceeds the ${Math.round(maxImageBytes / 1024 / 1024)} MB image limit.`);
+    }
+  }
+}
+
+async function submitScreen(item) {
+  const payload = new FormData();
+  payload.append("label_id", item.labelId);
+  payload.append("image", item.file);
+  const response = await fetch("/api/screen", { method: "POST", body: payload });
+  const body = await response.json().catch(() => ({
+    error: "The server returned an unreadable response.",
+  }));
+  if (!response.ok) throw new Error(body.error || "The label could not be screened.");
+  return body;
+}
+
+screenForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  hideError(screenError);
+  screeningResults = [];
+  qs("#screen-result-body").replaceChildren();
+  qs("#screen-completion").classList.add("hidden");
+
+  try {
+    const items = screenItems([...imageInput.files]);
+    validateFiles(items.map((item) => item.file));
+    await processScreen(items);
+  } catch (error) {
+    showError(screenError, error.message);
+  }
+});
+
+async function processScreen(items) {
+  const progress = qs("#screen-progress");
+  const results = qs("#screen-results");
   const bar = qs("#progress-bar");
   let nextIndex = 0;
   let completed = 0;
 
   progress.classList.remove("hidden");
   results.classList.remove("hidden");
-  button.disabled = true;
-  button.textContent = "Batch in progress…";
-  bar.max = rows.length;
+  screenButton.disabled = true;
+  screenButton.textContent = "Screening labels…";
+  bar.max = items.length;
   bar.value = 0;
-  updateProgress(completed, rows.length);
+  updateProgress(completed, items.length);
 
   async function worker() {
-    while (nextIndex < rows.length) {
-      const row = rows[nextIndex];
+    while (nextIndex < items.length) {
+      const item = items[nextIndex];
       nextIndex += 1;
-      const application = {
-        application_id: row.id,
-        beverage_type: row.beverage_type || "distilled_spirits",
-        brand_name: row.brand_name,
-        class_type: row.class_type,
-        abv: row.abv ? Number(row.abv) : null,
-        proof: (row.beverage_type || "distilled_spirits") === "distilled_spirits" && row.proof
-          ? Number(row.proof)
-          : null,
-        net_contents: row.net_contents,
-        producer_name_address: row.producer_name_address,
-        country_of_origin: row.country_of_origin || null,
-      };
       try {
-        const result = await submitReview(application, [imagesByName.get(row.image_filename)]);
-        batchResults.push(result);
-        appendBatchRow(result);
+        const result = await submitScreen(item);
+        screeningResults.push(result);
+        appendScreenRow(result);
       } catch (error) {
         const failure = {
-          application_id: row.id,
+          label_id: item.labelId,
           overall_status: "unable",
           request_failed: true,
           summary: error.message,
           processing_ms: null,
           checks: [],
         };
-        const resultIndex = batchResults.push(failure) - 1;
-        appendBatchRow(failure, async () => {
+        const resultIndex = screeningResults.push(failure) - 1;
+        appendScreenRow(failure, async () => {
           try {
-            const retriedResult = await submitReview(
-              application,
-              [imagesByName.get(row.image_filename)],
-            );
-            batchResults[resultIndex] = retriedResult;
-            return retriedResult;
+            const retryResult = await submitScreen(item);
+            screeningResults[resultIndex] = retryResult;
+            return retryResult;
           } catch (retryError) {
             failure.summary = retryError.message;
-            renderBatchCompletion();
+            renderCompletion();
             throw retryError;
           }
         });
       }
       completed += 1;
       bar.value = completed;
-      updateProgress(completed, rows.length);
+      updateProgress(completed, items.length);
     }
   }
 
   try {
     await Promise.all([worker(), worker()]);
   } finally {
-    button.disabled = false;
-    button.textContent = "Start batch review";
-    renderBatchCompletion();
+    screenButton.disabled = false;
+    screenButton.textContent = "Start label screen";
+    renderCompletion();
   }
 }
 
 function updateProgress(completed, total) {
   qs("#progress-text").textContent =
     completed === total
-      ? `${total} of ${total} applications complete.`
-      : `${completed} of ${total} applications complete. You may review finished items below.`;
+      ? `${total} of ${total} labels complete.`
+      : `${completed} of ${total} labels complete. You may review finished results below.`;
 }
 
-function appendBatchRow(result, retry = null) {
+function element(tag, className = "", text = "") {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== "") node.textContent = text;
+  return node;
+}
+
+function externalLink(url, label) {
+  const link = element("a", "text-link", label);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
+}
+
+function appendScreenRow(result, retry = null) {
   const row = document.createElement("tr");
   const statusNames = {
-    match: "Matches",
-    attention: "Needs attention",
+    match: "No possible review items",
+    attention: "Possible review items",
     unable: "Human review required",
   };
   const statusName = result.request_failed
     ? "Processing failed"
     : statusNames[result.overall_status];
   const guidance = element("td", "", result.summary);
-  if (retry) {
-    guidance.append(renderBatchRetry(retry, row));
-  }
+  if (retry) guidance.append(renderRetryButton(retry, row));
   row.append(
-    element("td", "", result.application_id || "Not supplied"),
+    element("td", "", result.label_id || "Unnamed label"),
     element("td", "", statusName),
-    renderPossibleIssues(result),
+    renderPossibleItems(result),
     guidance,
     element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
   );
-  qs("#batch-result-body").append(row);
+  qs("#screen-result-body").append(row);
   return row;
 }
 
-function renderBatchRetry(retry, originalRow) {
+function renderRetryButton(retry, originalRow) {
   const container = element("div", "batch-retry");
-  const button = element("button", "secondary-button", "Retry this application");
+  const button = element("button", "secondary-button", "Retry this label");
   const message = element("p", "batch-retry-message hidden");
   button.type = "button";
   button.addEventListener("click", async () => {
@@ -466,12 +208,12 @@ function renderBatchRetry(retry, originalRow) {
     message.classList.add("hidden");
     try {
       const result = await retry();
-      const replacement = appendBatchRow(result);
+      const replacement = appendScreenRow(result);
       originalRow.replaceWith(replacement);
-      renderBatchCompletion();
+      renderCompletion();
     } catch (error) {
       button.disabled = false;
-      button.textContent = "Retry this application";
+      button.textContent = "Retry this label";
       message.textContent = `Retry failed: ${error.message}`;
       message.classList.remove("hidden");
     }
@@ -480,29 +222,27 @@ function renderBatchRetry(retry, originalRow) {
   return container;
 }
 
-function renderPossibleIssues(result) {
+function renderPossibleItems(result) {
   const cell = document.createElement("td");
   if (result.request_failed) {
-    cell.append(element("p", "no-issues", "No review result was produced."));
+    cell.append(element("p", "no-issues", "No screening result was produced."));
     return cell;
   }
-  if (result.overall_status === "match") {
-    cell.append(element("p", "no-issues", "No discrepancies identified."));
-    return cell;
-  }
-  const checks = (result.checks || []).filter((check) => check.status !== "match");
+  const checks = (result.checks || []).filter((check) => check.status === "review");
   if (!checks.length) {
-    cell.append(element("p", "no-issues", "No discrepancies identified."));
+    cell.append(element("p", "no-issues", "No possible review items identified."));
     return cell;
   }
 
   const list = element("ul", "issue-list");
   checks.forEach((check) => {
-    const expected = check.expected || "not supplied";
-    const observed = check.observed || "not confidently detected";
-    const item = element("li", "", `${check.label}: expected ${expected}; observed ${observed}.`);
+    const observed = check.observed || "Not confidently located";
+    const item = element("li", "", `${check.label}: ${check.explanation} Observed: ${observed}.`);
     if (check.guidance_url) {
-      item.append(document.createTextNode(" "), externalLink(check.guidance_url, check.guidance_title || "TTB guidance"));
+      item.append(
+        document.createTextNode(" "),
+        externalLink(check.guidance_url, check.guidance_title || "TTB guidance"),
+      );
     }
     list.append(item);
   });
@@ -510,57 +250,46 @@ function renderPossibleIssues(result) {
   return cell;
 }
 
-function formatApplicationIds(results) {
-  const ids = results.map((result) => result.application_id || "an application");
+function formatLabelIds(results) {
+  const ids = results.map((result) => result.label_id || "an unnamed label");
   if (ids.length === 1) return ids[0];
   if (ids.length === 2) return `${ids[0]} and ${ids[1]}`;
   return `${ids.slice(0, -1).join(", ")}, and ${ids.at(-1)}`;
 }
 
-function renderBatchCompletion() {
-  if (!batchResults.length) return;
-  const discrepancies = batchResults.filter((result) => result.overall_status === "attention");
-  const failed = batchResults.filter((result) => result.request_failed);
-  const uncertain = batchResults.filter(
+function renderCompletion() {
+  if (!screeningResults.length) return;
+  const possibleItems = screeningResults.filter(
+    (result) => result.overall_status === "attention",
+  );
+  const uncertain = screeningResults.filter(
     (result) => result.overall_status === "unable" && !result.request_failed,
   );
+  const failed = screeningResults.filter((result) => result.request_failed);
   const copy = [];
 
-  if (discrepancies.length) {
+  if (possibleItems.length) {
     copy.push(
-      `Applications ${formatApplicationIds(discrepancies)} ${discrepancies.length === 1 ? "has" : "have"} discrepancies.`,
+      `Labels ${formatLabelIds(possibleItems)} ${possibleItems.length === 1 ? "has" : "have"} possible review items.`,
     );
   }
   if (uncertain.length) {
     copy.push(
-      `Applications ${formatApplicationIds(uncertain)} ${uncertain.length === 1 ? "requires" : "require"} human review because the automated screen could not verify all supplied values.`,
+      `Labels ${formatLabelIds(uncertain)} ${uncertain.length === 1 ? "requires" : "require"} human review because the automated screen could not verify all visible information.`,
     );
   }
   if (failed.length) {
     copy.push(
-      `Applications ${formatApplicationIds(failed)} could not be processed and can be retried.`,
+      `Labels ${formatLabelIds(failed)} could not be processed and can be retried.`,
     );
   }
   if (!copy.length) {
-    copy.push(`All ${batchResults.length} applications matched the supplied application data.`);
+    copy.push(`No possible review items were identified across ${screeningResults.length} labels.`);
   }
   copy.push("You can continue to applications when ready.");
 
-  qs("#batch-completion-copy").textContent = copy.join(" ");
-  qs("#batch-completion").classList.remove("hidden");
+  qs("#screen-completion-copy").textContent = copy.join(" ");
+  qs("#screen-completion").classList.remove("hidden");
 }
 
 qs("#print-results").addEventListener("click", () => window.print());
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function downloadText(filename, text) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
