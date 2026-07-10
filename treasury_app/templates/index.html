@@ -67,11 +67,7 @@
 
             <div class="field-grid">
               <div class="field full-width">
-                <label for="application-id">Application ID <span class="optional">(optional)</span></label>
-                <input id="application-id" name="application_id" autocomplete="off">
-              </div>
-              <div class="field full-width">
-                <label for="beverage-type">Beverage type</label>
+                <label for="beverage-type">Type of product</label>
                 <select id="beverage-type" name="beverage_type">
                   <option value="distilled_spirits" selected>Distilled spirits</option>
                   <option value="wine">Wine</option>
@@ -85,7 +81,7 @@
                        value="Old Tom Distillery">
               </div>
               <div class="field">
-                <label for="class-type">Class or type</label>
+                <label for="class-type">Class/type designation</label>
                 <input id="class-type" name="class_type" required
                        value="Kentucky Straight Bourbon Whiskey">
               </div>
@@ -100,17 +96,30 @@
                        step="0.1" inputmode="decimal" value="90">
               </div>
               <div class="field">
-                <label for="net-contents">Net contents</label>
-                <input id="net-contents" name="net_contents" required value="750 mL">
+                <label for="net-contents-value">Total bottle capacity</label>
+                <div class="capacity-input">
+                  <input id="net-contents-value" name="net_contents_value" type="number"
+                         min="0.1" step="0.1" inputmode="decimal" required value="750">
+                  <select id="net-contents-unit" name="net_contents_unit" aria-label="Total bottle capacity unit">
+                    <option value="mL" selected>mL</option>
+                    <option value="L">L</option>
+                    <option value="fl oz">fl oz</option>
+                    <option value="pint">pint</option>
+                    <option value="quart">quart</option>
+                    <option value="gallon">gallon</option>
+                  </select>
+                </div>
               </div>
               <div class="field">
                 <label for="country-origin">Country of origin <span class="optional">(imports only)</span></label>
                 <input id="country-origin" name="country_of_origin">
               </div>
               <div class="field full-width">
-                <label for="producer">Producer or bottler name and address</label>
+                <label for="producer">Name and address of applicant</label>
                 <input id="producer" name="producer_name_address" required
+                       autocomplete="organization"
                        value="Old Tom Distillery, Louisville KY">
+                <p class="hint">As shown on the plant registry, basic permit, or brewer's notice.</p>
               </div>
             </div>
           </div>

@@ -64,6 +64,8 @@ def test_numeric_parsers():
     assert parse_proof(label) == 90
     assert parse_volume_ml("0.75 L") == 750
     assert parse_volume_ml("750 milliliters") == 750
+    assert abs(parse_volume_ml("16 fl oz") - parse_volume_ml("1 pint")) < 0.01
+    assert abs(parse_volume_ml("1 quart") - parse_volume_ml("32 fluid ounces")) < 0.01
 
 
 def test_matching_extraction_passes_all_checks():
