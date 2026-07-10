@@ -45,6 +45,50 @@ The workflow intentionally separates three jobs that have different certainty:
 3. **Review a batch** uses a CSV manifest and matching images for the most
    structured, field-by-field comparison.
 
+### Design decisions and attention to detail
+
+- I kept image extraction behind a provider interface and used a hosted vision
+  model instead of bundling OpenCV and PaddleOCR. This kept the Render service
+  small while leaving a clean path for local preprocessing or OCR later.
+- I separated probabilistic extraction from deterministic comparison. MiMo
+  identifies visible evidence; Python validates the response, normalizes it,
+  and decides whether the result is a match, a possible difference, or unable
+  to verify.
+- I removed the full Product Class/Type dropdown after reviewing the size of
+  the TTB lookup list. Reviewers enter the designation already on the
+  application, while the model infers only the broad beverage profile needed
+  to choose the correct comparison behavior.
+- I treated numeric fields more strictly than visually ambiguous marketing
+  text. ABV and proof are extracted separately, their arithmetic relationship
+  is checked, and volumes are normalized across metric and U.S. units.
+- I added normalization for punctuation, case, legal business suffixes,
+  decimal commas, the European estimated-content mark (`e`), and common
+  country-name translations without allowing those rules to hide real numeric
+  differences.
+- I narrowed automated government-warning review after testing showed that a
+  vision model could locate the heading more reliably than it could judge exact
+  boldness, type size, wording, or placement. Those details remain explicit
+  human-review items.
+- I designed for failure as part of the normal workflow: malformed model JSON
+  is recovered when safe, uncertain evidence is routed to a reviewer, failed
+  batch items can be retried individually, and the summary recalculates after a
+  successful retry.
+- I kept the interface direct for reviewers with different levels of technical
+  comfort: three dedicated pages, plain-language statuses, focused TTB links,
+  visible progress, keyboard focus states, and save/print output.
+- I validated MIME types and file signatures, limited request and batch sizes,
+  avoided persistent uploads, and kept COLAs Online as an external link rather
+  than implying that the prototype submits or approves an application.
+
+My main concern was false confidence. Stylized labels can make brand, producer,
+and class/type text ambiguous, while a proof/ABV mix-up or an overconfident
+claim about a government warning could misdirect a real reviewer. I therefore
+preferred an honest “unable to verify” result over a guessed match, repeatedly
+tested matched and deliberately mismatched batches, and kept final decisions
+with an authorized reviewer. I was also concerned about API latency and
+intermittent invalid responses, usability for older staff, and the security and
+retention requirements that would apply to real federal data.
+
 The original take-home prompt is preserved in
 [`docs/ASSESSMENT.md`](docs/ASSESSMENT.md).
 
@@ -58,6 +102,22 @@ The original take-home prompt is preserved in
   volume, text matching, and status aggregation.
 - **pytest and GitHub Actions** for automated regression tests.
 - **Gunicorn and Render** for hosted deployment.
+
+## AI usage disclosure
+
+AI was used in two distinct roles:
+
+| Model or system | Role in this project |
+| --- | --- |
+| **Xiaomi MiMo `mimo-v2.5`** | The deployed application's only inference model. It receives label images, transcribes visible evidence, and returns structured observations for deterministic review. |
+| **OpenAI Codex (GPT-5-based coding agent)** | My primary development assistant for planning, implementation, debugging, test construction, test-data preparation, code review, Git workflow, and documentation. |
+
+I did not train or fine-tune a model. Codex-generated changes were reviewed and
+iterated against the application behavior and automated tests rather than
+accepted as authoritative. The exact internal Codex snapshot was not pinned in
+the repository, so I am not claiming a more specific model identifier than the
+one exposed by the Codex client. `MockProvider` is a deterministic test fixture,
+not an AI model.
 
 ## Architecture
 
@@ -233,7 +293,7 @@ Render metrics under realistic uploads.
 
 ## Pull request delivery log
 
-Every implementation change was delivered through a pull request:
+Every repository change was delivered through a pull request:
 
 | PR | Summary |
 | --- | --- |
@@ -256,6 +316,8 @@ Every implementation change was delivered through a pull request:
 | [#17](https://github.com/brianbzeng/treasurytakehome/pull/17) | Combined individual review, quick scan, and CSV batch comparison. |
 | [#18](https://github.com/brianbzeng/treasurytakehome/pull/18) | Restored individual review without requiring a beverage-type dropdown. |
 | [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
+| [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Prepared the evaluator-facing setup, architecture, assumptions, and delivery documentation. |
+| [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, attention to detail, and primary project concerns. |
 
 ## Planned follow-up
 
