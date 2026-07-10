@@ -11,6 +11,8 @@ evidence-based observations.
 
 ## What the baseline supports
 
+- Compare one label and its submitted application values without requiring the
+  reviewer to select a beverage type or Product Class/Type code.
 - Run a quick diagnostic on one to 100 label images without requiring a CSV or
   typed application data.
 - Compare as many as 300 CSV application rows with their referenced label
@@ -39,11 +41,13 @@ The original take-home prompt is preserved in
 
 ```text
 Browser
+  ├─ Individual comparison (up to four views)
+  │      └─ /api/review → expected-versus-observed discrepancies
   ├─ Quick label scan (one to 100 images)
   │      └─ /api/screen → possible label review items
-  └─ CSV application comparison (up to 300 rows)
+  └─ CSV batch comparison (up to 300 rows)
          └─ /api/review → expected-versus-observed discrepancies
-                    ↓ multipart upload
+                    ↓ multipart uploads
 Flask / Gunicorn
   ├─ input validation
   ├─ MiMo provider adapter
@@ -112,24 +116,40 @@ record is supplied. The browser sends at most two requests at once, shows
 results as they finish, and lets the reviewer retry only a label that the image
 service could not process.
 
-## Application-data comparison
+## Review one label
 
-Choose **Compare with application data**, download the CSV template, and fill
-one row per application. Then upload the CSV and every referenced label image.
-The comparison mode supports up to 300 rows and reports differences between the
+Choose **Review one label** when the reviewer has the submitted values for a
+single application. Enter the brand name, class/type designation, optional ABV
+and proof, total bottle capacity, applicant name and address, and country of
+origin when applicable. Then add up to four front, back, or side label views.
+
+The reviewer does not choose a beverage type. MiMo infers only a broad profile
+from the visible label - distilled spirits, wine, malt beverage, or unknown -
+to choose appropriate comparison behavior and TTB guidance. It does not choose
+or validate a specific TTB Product Class/Type code. ABV is optional on the
+form, but an inferred distilled-spirit label without a submitted ABV is routed
+to human review because there is no value to compare.
+
+## Review a batch
+
+Choose **Review a batch**, download the CSV template, and fill one row per
+application. Then upload the CSV and every referenced label image. The
+comparison mode supports up to 300 rows and reports differences between the
 supplied values and visible label evidence.
 
 Required CSV columns:
 
 ```text
-id,beverage_type,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
+id,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
 ```
 
-Use `distilled_spirits`, `wine`, or `malt_beverage` for `beverage_type`. A blank
-beverage type defaults to distilled spirits for compatibility with older
-templates. `image_filename` must exactly match the name of an uploaded JPEG,
-PNG, or WebP file. The browser runs two comparisons at a time and provides a
-retry control for an individual processing failure.
+`image_filename` must exactly match the name of an uploaded JPEG, PNG, or WebP
+file. ABV and proof are optional when those values were not supplied with the
+application. The assistant infers the broad beverage profile from each label;
+the CSV does not require a beverage-type or Product Class/Type column. Existing
+manifests with an optional `beverage_type` column remain compatible. The browser
+runs two comparisons at a time and provides a retry control for an individual
+processing failure.
 
 Uploaded images and application values are held only for the active browser
 session and request; the app does not persist them to its filesystem or a

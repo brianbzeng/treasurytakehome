@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 BeverageType = Literal["distilled_spirits", "wine", "malt_beverage"]
@@ -14,7 +14,9 @@ class ApplicationData(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     application_id: str | None = None
-    beverage_type: BeverageType = "distilled_spirits"
+    # The UI does not ask reviewers to select from the large TTB product-class
+    # taxonomy. When omitted, the broad profile is inferred from the label.
+    beverage_type: BeverageType | None = None
     brand_name: str = Field(min_length=1, max_length=200)
     class_type: str = Field(min_length=1, max_length=300)
     abv: float | None = Field(default=None, gt=0, le=100)
@@ -23,17 +25,10 @@ class ApplicationData(BaseModel):
     producer_name_address: str = Field(min_length=1, max_length=500)
     country_of_origin: str | None = Field(default=None, max_length=200)
 
-    @field_validator("application_id", "country_of_origin", mode="before")
+    @field_validator("application_id", "beverage_type", "country_of_origin", mode="before")
     @classmethod
     def empty_string_to_none(cls, value: object) -> object:
         return None if value == "" else value
-
-    @model_validator(mode="after")
-    def validate_profile_requirements(self) -> "ApplicationData":
-        if self.beverage_type == "distilled_spirits" and self.abv is None:
-            raise ValueError("Alcohol by volume is required for distilled spirits.")
-        return self
-
 
 class ExtractedField(BaseModel):
     model_config = ConfigDict(extra="ignore")

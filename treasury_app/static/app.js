@@ -1,11 +1,12 @@
 const qs = (selector, root = document) => root.querySelector(selector);
 const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
 
+const MAX_INDIVIDUAL_IMAGES = 4;
 const MAX_QUICK_LABELS = 100;
 const MAX_COMPARE_ROWS = 300;
 const maxImageBytes = Number(qs("#main-content").dataset.maxUploadMb) * 1024 * 1024;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const beverageTypes = new Set(["distilled_spirits", "wine", "malt_beverage"]);
+const modes = ["individual", "quick", "compare"];
 
 let quickResults = [];
 let comparisonResults = [];
@@ -16,6 +17,7 @@ function beginWorkflow(mode) {
     throw new Error("Wait for the current screening batch to finish before starting another.");
   }
   activeWorkflow = mode;
+  qs("#individual-button").disabled = true;
   qs("#screen-button").disabled = true;
   qs("#compare-button").disabled = true;
   qsa(".batch-retry button").forEach((button) => {
@@ -26,6 +28,7 @@ function beginWorkflow(mode) {
 function endWorkflow(mode) {
   if (activeWorkflow !== mode) return;
   activeWorkflow = null;
+  qs("#individual-button").disabled = false;
   qs("#screen-button").disabled = false;
   qs("#compare-button").disabled = false;
   qsa(".batch-retry button").forEach((button) => {
@@ -109,30 +112,199 @@ function renderRetryControl(buttonLabel, retry, onSuccess) {
 }
 
 function selectMode(mode) {
-  const quick = mode === "quick";
-  qs("#quick-tab").classList.toggle("active", quick);
-  qs("#compare-tab").classList.toggle("active", !quick);
-  qs("#quick-tab").setAttribute("aria-selected", String(quick));
-  qs("#compare-tab").setAttribute("aria-selected", String(!quick));
-  qs("#quick-tab").tabIndex = quick ? 0 : -1;
-  qs("#compare-tab").tabIndex = quick ? -1 : 0;
-  qs("#quick-panel").classList.toggle("hidden", !quick);
-  qs("#compare-panel").classList.toggle("hidden", quick);
-  (quick ? qs("#quick-tab") : qs("#compare-tab")).focus();
+  modes.forEach((candidate) => {
+    const selected = candidate === mode;
+    const tab = qs(`#${candidate}-tab`);
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    qs(`#${candidate}-panel`).classList.toggle("hidden", !selected);
+  });
+  qs(`#${mode}-tab`).focus();
 }
 
+qs("#individual-tab").addEventListener("click", () => selectMode("individual"));
 qs("#quick-tab").addEventListener("click", () => selectMode("quick"));
 qs("#compare-tab").addEventListener("click", () => selectMode("compare"));
 qsa(".mode-button").forEach((button) => {
   button.addEventListener("keydown", (event) => {
     if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       event.preventDefault();
-      if (event.key === "Home") selectMode("quick");
+      const current = modes.indexOf(button.id.replace("-tab", ""));
+      if (event.key === "Home") selectMode(modes[0]);
       else if (event.key === "End") selectMode("compare");
-      else selectMode(button.id === "quick-tab" ? "compare" : "quick");
+      else {
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        selectMode(modes[(current + direction + modes.length) % modes.length]);
+      }
     }
   });
 });
+
+// Individual application-and-label comparison.
+const individualForm = qs("#individual-form");
+const individualImages = qs("#individual-images");
+
+individualImages.addEventListener("change", () => {
+  qs("#individual-selected-files").replaceChildren(
+    ...[...individualImages.files].map((file) =>
+      element("li", "", `${file.name} (${formatBytes(file.size)})`),
+    ),
+  );
+});
+
+function validateIndividualImages(images) {
+  if (!images.length) throw new Error("Choose at least one label image.");
+  if (images.length > MAX_INDIVIDUAL_IMAGES) {
+    throw new Error(`Choose no more than ${MAX_INDIVIDUAL_IMAGES} images for one label.`);
+  }
+  images.forEach(validateImage);
+  const totalBytes = images.reduce((total, image) => total + image.size, 0);
+  if (totalBytes > maxImageBytes) {
+    throw new Error(
+      `The combined upload exceeds the ${Math.round(maxImageBytes / 1024 / 1024)} MB limit.`,
+    );
+  }
+}
+
+function applicationFromIndividualForm(form) {
+  const data = new FormData(form);
+  return {
+    application_id: null,
+    brand_name: data.get("brand_name"),
+    class_type: data.get("class_type"),
+    abv: data.get("abv") ? Number(data.get("abv")) : null,
+    proof: data.get("proof") ? Number(data.get("proof")) : null,
+    net_contents: `${data.get("net_contents_value")} ${data.get("net_contents_unit")}`,
+    producer_name_address: data.get("producer_name_address"),
+    country_of_origin: data.get("country_of_origin") || null,
+  };
+}
+
+async function submitReview(application, images) {
+  const payload = new FormData();
+  payload.append("application", JSON.stringify(application));
+  images.forEach((image) => payload.append("images", image));
+  const response = await fetch("/api/review", { method: "POST", body: payload });
+  const body = await response.json().catch(() => ({
+    error: "The server returned an unreadable response.",
+  }));
+  if (!response.ok) throw new Error(body.error || "The application could not be compared.");
+  return body;
+}
+
+individualForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const error = qs("#individual-error");
+  const resultRegion = qs("#individual-result");
+  const button = qs("#individual-button");
+  hideError(error);
+  resultRegion.classList.add("hidden");
+  if (activeWorkflow) {
+    showError(error, "Wait for the current screening batch to finish before starting another.");
+    return;
+  }
+
+  let started = false;
+  try {
+    const images = [...individualImages.files];
+    validateIndividualImages(images);
+    beginWorkflow("individual");
+    started = true;
+    button.textContent = "Reviewing label…";
+    renderIndividualResult(
+      await submitReview(applicationFromIndividualForm(individualForm), images),
+    );
+  } catch (problem) {
+    showError(error, problem.message);
+  } finally {
+    if (started) endWorkflow("individual");
+    button.textContent = "Review this label";
+  }
+});
+
+function renderIndividualResult(result) {
+  const statusCopy = {
+    match: ["Matches submitted values", "No discrepancies identified"],
+    attention: ["Needs attention", "One or more differences were found"],
+    unable: ["Human review required", "One or more values could not be verified"],
+  };
+  const [heading, shortStatus] = statusCopy[result.overall_status];
+  const header = element("div", `result-header ${result.overall_status}`);
+  const title = element("h2", "", heading);
+  title.id = "individual-result-heading";
+  header.append(
+    title,
+    element("p", "", result.summary),
+    element(
+      "p",
+      "result-meta",
+      `${shortStatus} · ${result.processing_ms} ms · ${result.provider}`,
+    ),
+  );
+
+  const disclaimer = element(
+    "p",
+    "advisory result-disclaimer",
+    "Automated findings are AI-assisted guidance only. Verify the label artwork and applicable requirements before acting.",
+  );
+  const checks = element("div", "check-list");
+  result.checks.forEach((check) => checks.append(renderIndividualCheck(check)));
+  const printButton = element("button", "secondary-button print-individual", "Save or print results");
+  printButton.type = "button";
+  printButton.addEventListener("click", () => window.print());
+  const continueControl = element("section", "override-control");
+  continueControl.append(
+    externalLink("https://www.ttbonline.gov/colasonline/", "Continue to application (external)"),
+    element(
+      "p",
+      "override-note",
+      "This prototype does not approve, reject, or transmit an application to TTB.",
+    ),
+  );
+
+  const resultRegion = qs("#individual-result");
+  resultRegion.replaceChildren(header, disclaimer, checks, printButton, continueControl);
+  resultRegion.classList.remove("hidden");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  resultRegion.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
+
+function renderIndividualCheck(check) {
+  const statusNames = { match: "Matches", review: "Review", mismatch: "Difference" };
+  const card = element("article", `check-card ${check.status}`);
+  const details = document.createElement("dl");
+  details.append(
+    element("dt", "", "Expected"),
+    element("dd", "", check.expected || "Not supplied"),
+    element("dt", "", "Observed"),
+    element("dd", "", check.observed || "Not confidently detected"),
+  );
+  if (check.confidence !== null && check.confidence !== undefined) {
+    details.append(
+      element("dt", "", "Confidence"),
+      element("dd", "", `${Math.round(check.confidence * 100)}%`),
+    );
+  }
+  card.append(
+    element("h3", "", check.label),
+    element("p", "status-label", statusNames[check.status]),
+    element("p", "", check.explanation),
+    details,
+  );
+  if (check.status !== "match" && check.guidance_url) {
+    const guidance = element("aside", "check-guidance");
+    guidance.append(
+      element("p", "guidance-kicker", "Relevant official guidance"),
+      externalLink(check.guidance_url, check.guidance_title || "Open TTB guidance"),
+    );
+    if (check.guidance_summary) {
+      guidance.append(element("p", "guidance-summary", check.guidance_summary));
+    }
+    card.append(guidance);
+  }
+  return card;
+}
 
 // Quick image-only diagnostic.
 const quickForm = qs("#screen-form");
@@ -353,18 +525,18 @@ function renderQuickSummary() {
       `No major review items were identified across ${quickResults.length} ${quickResults.length === 1 ? "label" : "labels"}.`,
     );
   }
-  copy.push("Use application comparison when you need field-by-field discrepancy screening.");
+  copy.push("Use Review one label or Review a batch when you need field-by-field discrepancy screening.");
   qs("#screen-completion-copy").textContent = copy.join(" ");
   qs("#screen-completion").classList.remove("hidden");
 }
 
 // CSV-backed application comparison.
 const templateHeaders = [
-  "id", "beverage_type", "brand_name", "class_type", "abv", "proof", "net_contents",
+  "id", "brand_name", "class_type", "abv", "proof", "net_contents",
   "producer_name_address", "country_of_origin", "image_filename",
 ];
 const templateRow = [
-  "APP-001", "distilled_spirits", "Old Tom Distillery", "Kentucky Straight Bourbon Whiskey",
+  "APP-001", "Old Tom Distillery", "Kentucky Straight Bourbon Whiskey",
   "45", "90", "750 mL", "Old Tom Distillery, Louisville KY", "", "old-tom-front.jpg",
 ];
 
@@ -423,18 +595,11 @@ function validateComparisonRows(rows) {
     throw new Error(`A comparison batch may contain no more than ${MAX_COMPARE_ROWS} applications.`);
   }
   rows.forEach((row, index) => {
-    for (const header of templateHeaders.filter((name) => name !== "beverage_type")) {
+    for (const header of templateHeaders) {
       if (!(header in row)) throw new Error(`Missing required CSV column: ${header}`);
-    }
-    const beverageType = row.beverage_type || "distilled_spirits";
-    if (!beverageTypes.has(beverageType)) {
-      throw new Error(`Row ${index + 2} has an invalid beverage_type.`);
     }
     for (const field of ["id", "brand_name", "class_type", "net_contents", "producer_name_address", "image_filename"]) {
       if (!row[field]) throw new Error(`Row ${index + 2} is missing ${field}.`);
-    }
-    if (beverageType === "distilled_spirits" && !row.abv) {
-      throw new Error(`Row ${index + 2} is missing ABV for a distilled spirit.`);
     }
     if (row.abv) {
       const abv = Number(row.abv);
@@ -449,18 +614,6 @@ function validateComparisonRows(rows) {
       }
     }
   });
-}
-
-async function submitComparison(application, image) {
-  const payload = new FormData();
-  payload.append("application", JSON.stringify(application));
-  payload.append("images", image);
-  const response = await fetch("/api/review", { method: "POST", body: payload });
-  const body = await response.json().catch(() => ({
-    error: "The server returned an unreadable response.",
-  }));
-  if (!response.ok) throw new Error(body.error || "The application could not be compared.");
-  return body;
 }
 
 qs("#compare-form").addEventListener("submit", async (event) => {
@@ -496,14 +649,15 @@ qs("#compare-form").addEventListener("submit", async (event) => {
 });
 
 function applicationFromRow(row) {
-  const beverageType = row.beverage_type || "distilled_spirits";
   return {
     application_id: row.id,
-    beverage_type: beverageType,
+    // Existing manifests with this optional legacy column remain compatible,
+    // but the template and UI no longer require a reviewer to choose a profile.
+    beverage_type: row.beverage_type || null,
     brand_name: row.brand_name,
     class_type: row.class_type,
     abv: row.abv ? Number(row.abv) : null,
-    proof: beverageType === "distilled_spirits" && row.proof ? Number(row.proof) : null,
+    proof: row.proof ? Number(row.proof) : null,
     net_contents: row.net_contents,
     producer_name_address: row.producer_name_address,
     country_of_origin: row.country_of_origin || null,
@@ -530,7 +684,7 @@ async function processComparisons(rows, imagesByName) {
       const application = applicationFromRow(sourceRow);
       const image = imagesByName.get(sourceRow.image_filename);
       try {
-        const result = await submitComparison(application, image);
+        const result = await submitReview(application, [image]);
         comparisonResults.push(result);
         appendComparisonRow(result);
       } catch (error) {
@@ -545,7 +699,7 @@ async function processComparisons(rows, imagesByName) {
         const resultIndex = comparisonResults.push(failure) - 1;
         appendComparisonRow(failure, async () => {
           try {
-            const retried = await submitComparison(application, image);
+            const retried = await submitReview(application, [image]);
             comparisonResults[resultIndex] = retried;
             return retried;
           } catch (retryError) {

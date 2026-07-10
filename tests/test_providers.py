@@ -51,6 +51,8 @@ def test_mimo_retries_once_after_an_invalid_structured_response():
     assert completions.requests[0]["extra_body"] == {
         "thinking": {"type": "disabled"}
     }
+    prompt = completions.requests[0]["messages"][1]["content"][-1]["text"]
+    assert "Beverage profile: Determine from the visible label" in prompt
 
 
 def test_extraction_parser_recovers_common_model_formatting_errors():
