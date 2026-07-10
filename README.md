@@ -82,6 +82,12 @@ flask --app app run --debug
 
 Open <http://127.0.0.1:5000>.
 
+The landing page links to three focused workflows:
+
+- `/review` for one submitted application and its label views
+- `/quick-scan` for image-only label diagnostics
+- `/batch-review` for CSV-backed application comparison
+
 ### Mock development mode
 
 To exercise the complete interface without making API calls:

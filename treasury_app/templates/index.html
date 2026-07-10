@@ -9,13 +9,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   </head>
-  <body>
+  <body data-mode="{{ mode }}">
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="site-header">
       <div class="header-inner">
         <div>
           <p class="eyebrow">Proof of concept</p>
-          <p class="site-title">TTB Label Review Assistant</p>
+          <p class="site-title"><a href="{{ url_for('main.index') }}">TTB Label Review Assistant</a></p>
         </div>
         <span class="decision-support">Decision support only</span>
       </div>
@@ -30,11 +30,22 @@
     <main id="main-content" class="page-shell" data-max-upload-mb="{{ max_upload_mb }}">
       <section class="intro" aria-labelledby="page-heading">
         <p class="eyebrow">Alcohol label screening</p>
-        <h1 id="page-heading">Choose the level of label review you need</h1>
-        <p>
-          Compare one label with its submitted values, run a quick image-only
-          diagnostic, or review a larger CSV-backed batch.
-        </p>
+        {% if mode == "home" %}
+          <h1 id="page-heading">Choose a label-review workflow</h1>
+          <p>
+            Use a focused screen for one submitted label, a quick image-only
+            diagnostic, or a CSV-backed comparison batch.
+          </p>
+        {% elif mode == "individual" %}
+          <h1 id="page-heading">Review one submitted label</h1>
+          <p>Compare application values with up to four views of the same label.</p>
+        {% elif mode == "quick" %}
+          <h1 id="page-heading">Run a quick label scan</h1>
+          <p>Screen up to 100 label images for major visible review items.</p>
+        {% else %}
+          <h1 id="page-heading">Review an application batch</h1>
+          <p>Compare a CSV application manifest with the matching label images.</p>
+        {% endif %}
         <div class="advisory" role="note">
           <strong>AI-assisted guidance only.</strong> These tools do not approve,
           reject, or submit anything to TTB. Confirm the label artwork and
@@ -42,22 +53,38 @@
         </div>
       </section>
 
-      <div class="mode-switcher" role="tablist" aria-label="Screening mode">
-        <button id="individual-tab" class="mode-button active" type="button" role="tab"
-                aria-selected="true" aria-controls="individual-panel">
-          Review one label
-        </button>
-        <button id="quick-tab" class="mode-button" type="button" role="tab"
-                aria-selected="false" aria-controls="quick-panel" tabindex="-1">
-          Quick label scan
-        </button>
-        <button id="compare-tab" class="mode-button" type="button" role="tab"
-                aria-selected="false" aria-controls="compare-panel" tabindex="-1">
-          Review a batch
-        </button>
-      </div>
+      <nav class="mode-switcher" aria-label="Review workflow">
+        <a class="mode-button {% if mode == 'individual' %}active{% endif %}"
+           href="{{ url_for('main.individual_review') }}"
+           {% if mode == 'individual' %}aria-current="page"{% endif %}>Review one label</a>
+        <a class="mode-button {% if mode == 'quick' %}active{% endif %}"
+           href="{{ url_for('main.quick_scan') }}"
+           {% if mode == 'quick' %}aria-current="page"{% endif %}>Quick label scan</a>
+        <a class="mode-button {% if mode == 'compare' %}active{% endif %}"
+           href="{{ url_for('main.batch_review') }}"
+           {% if mode == 'compare' %}aria-current="page"{% endif %}>Review a batch</a>
+      </nav>
 
-      <section id="individual-panel" role="tabpanel" aria-labelledby="individual-tab">
+      {% if mode == "home" %}
+        <section class="mode-overview" aria-label="Review options">
+          <article class="mode-card">
+            <h2>Review one label</h2>
+            <p>Compare one application’s submitted values with clear front, back, or side artwork.</p>
+            <a class="primary-button" href="{{ url_for('main.individual_review') }}">Open one-label review</a>
+          </article>
+          <article class="mode-card">
+            <h2>Quick label scan</h2>
+            <p>Upload label images only for a fast diagnostic of major visible review items.</p>
+            <a class="primary-button" href="{{ url_for('main.quick_scan') }}">Open quick scan</a>
+          </article>
+          <article class="mode-card">
+            <h2>Review a batch</h2>
+            <p>Use a CSV manifest with matching images when field-by-field comparison is needed.</p>
+            <a class="primary-button" href="{{ url_for('main.batch_review') }}">Open batch review</a>
+          </article>
+        </section>
+      {% elif mode == "individual" %}
+      <section id="individual-panel" aria-labelledby="page-heading">
         <form id="individual-form" class="review-form">
           <div class="form-card">
             <div class="step-heading">
@@ -138,7 +165,7 @@
           </div>
 
           <div id="individual-error" class="alert error hidden" role="alert" tabindex="-1"></div>
-          <button id="individual-button" class="primary-button" type="submit">
+          <button id="individual-button" class="primary-button" data-workflow-submit type="submit">
             Review this label
           </button>
         </form>
@@ -146,7 +173,8 @@
                  aria-labelledby="individual-result-heading"></section>
       </section>
 
-      <section id="quick-panel" class="hidden" role="tabpanel" aria-labelledby="quick-tab">
+      {% elif mode == "quick" %}
+      <section id="quick-panel" aria-labelledby="page-heading">
         <form id="screen-form" class="review-form">
           <div class="form-card">
             <div class="step-heading">
@@ -168,7 +196,7 @@
             </div>
           </div>
           <div id="screen-error" class="alert error hidden" role="alert" tabindex="-1"></div>
-          <button id="screen-button" class="primary-button" type="submit">
+          <button id="screen-button" class="primary-button" data-workflow-submit type="submit">
             Start quick scan
           </button>
         </form>
@@ -216,7 +244,8 @@
         </section>
       </section>
 
-      <section id="compare-panel" class="hidden" role="tabpanel" aria-labelledby="compare-tab">
+      {% elif mode == "compare" %}
+      <section id="compare-panel" aria-labelledby="page-heading">
         <div class="form-card">
           <div class="step-heading">
             <span class="step-number" aria-hidden="true">1</span>
@@ -245,7 +274,7 @@
                      accept="image/jpeg,image/png,image/webp" multiple required>
             </div>
             <div id="compare-error" class="alert error hidden" role="alert" tabindex="-1"></div>
-            <button id="compare-button" class="primary-button" type="submit">
+            <button id="compare-button" class="primary-button" data-workflow-submit type="submit">
               Start application comparison
             </button>
           </form>
@@ -293,6 +322,7 @@
           </section>
         </section>
       </section>
+      {% endif %}
     </main>
 
     <footer>

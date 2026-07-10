@@ -6,8 +6,6 @@ const MAX_QUICK_LABELS = 100;
 const MAX_COMPARE_ROWS = 300;
 const maxImageBytes = Number(qs("#main-content").dataset.maxUploadMb) * 1024 * 1024;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const modes = ["individual", "quick", "compare"];
-
 let quickResults = [];
 let comparisonResults = [];
 let activeWorkflow = null;
@@ -17,9 +15,9 @@ function beginWorkflow(mode) {
     throw new Error("Wait for the current screening batch to finish before starting another.");
   }
   activeWorkflow = mode;
-  qs("#individual-button").disabled = true;
-  qs("#screen-button").disabled = true;
-  qs("#compare-button").disabled = true;
+  qsa("[data-workflow-submit]").forEach((button) => {
+    button.disabled = true;
+  });
   qsa(".batch-retry button").forEach((button) => {
     button.disabled = true;
   });
@@ -28,9 +26,9 @@ function beginWorkflow(mode) {
 function endWorkflow(mode) {
   if (activeWorkflow !== mode) return;
   activeWorkflow = null;
-  qs("#individual-button").disabled = false;
-  qs("#screen-button").disabled = false;
-  qs("#compare-button").disabled = false;
+  qsa("[data-workflow-submit]").forEach((button) => {
+    button.disabled = false;
+  });
   qsa(".batch-retry button").forEach((button) => {
     button.disabled = false;
   });
@@ -111,47 +109,19 @@ function renderRetryControl(buttonLabel, retry, onSuccess) {
   return container;
 }
 
-function selectMode(mode) {
-  modes.forEach((candidate) => {
-    const selected = candidate === mode;
-    const tab = qs(`#${candidate}-tab`);
-    tab.classList.toggle("active", selected);
-    tab.setAttribute("aria-selected", String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-    qs(`#${candidate}-panel`).classList.toggle("hidden", !selected);
-  });
-  qs(`#${mode}-tab`).focus();
-}
-
-qs("#individual-tab").addEventListener("click", () => selectMode("individual"));
-qs("#quick-tab").addEventListener("click", () => selectMode("quick"));
-qs("#compare-tab").addEventListener("click", () => selectMode("compare"));
-qsa(".mode-button").forEach((button) => {
-  button.addEventListener("keydown", (event) => {
-    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-      event.preventDefault();
-      const current = modes.indexOf(button.id.replace("-tab", ""));
-      if (event.key === "Home") selectMode(modes[0]);
-      else if (event.key === "End") selectMode("compare");
-      else {
-        const direction = event.key === "ArrowLeft" ? -1 : 1;
-        selectMode(modes[(current + direction + modes.length) % modes.length]);
-      }
-    }
-  });
-});
-
 // Individual application-and-label comparison.
 const individualForm = qs("#individual-form");
 const individualImages = qs("#individual-images");
 
-individualImages.addEventListener("change", () => {
-  qs("#individual-selected-files").replaceChildren(
-    ...[...individualImages.files].map((file) =>
-      element("li", "", `${file.name} (${formatBytes(file.size)})`),
-    ),
-  );
-});
+if (individualImages) {
+  individualImages.addEventListener("change", () => {
+    qs("#individual-selected-files").replaceChildren(
+      ...[...individualImages.files].map((file) =>
+        element("li", "", `${file.name} (${formatBytes(file.size)})`),
+      ),
+    );
+  });
+}
 
 function validateIndividualImages(images) {
   if (!images.length) throw new Error("Choose at least one label image.");
@@ -193,7 +163,7 @@ async function submitReview(application, images) {
   return body;
 }
 
-individualForm.addEventListener("submit", async (event) => {
+if (individualForm) individualForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const error = qs("#individual-error");
   const resultRegion = qs("#individual-result");
@@ -310,13 +280,15 @@ function renderIndividualCheck(check) {
 const quickForm = qs("#screen-form");
 const quickImages = qs("#label-images");
 
-quickImages.addEventListener("change", () => {
-  qs("#selected-files").replaceChildren(
-    ...[...quickImages.files].map((file) =>
-      element("li", "", `${file.name} (${formatBytes(file.size)})`),
-    ),
-  );
-});
+if (quickImages) {
+  quickImages.addEventListener("change", () => {
+    qs("#selected-files").replaceChildren(
+      ...[...quickImages.files].map((file) =>
+        element("li", "", `${file.name} (${formatBytes(file.size)})`),
+      ),
+    );
+  });
+}
 
 function quickItems(files) {
   const seenNames = new Map();
@@ -350,7 +322,7 @@ async function submitQuickScreen(item) {
   return body;
 }
 
-quickForm.addEventListener("submit", async (event) => {
+if (quickForm) quickForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   hideError(qs("#screen-error"));
   if (activeWorkflow) {
@@ -540,13 +512,16 @@ const templateRow = [
   "45", "90", "750 mL", "Old Tom Distillery, Louisville KY", "", "old-tom-front.jpg",
 ];
 
-qs("#template-link").addEventListener("click", (event) => {
-  event.preventDefault();
-  downloadText(
-    "ttb-batch-template.csv",
-    `${templateHeaders.map(csvEscape).join(",")}\n${templateRow.map(csvEscape).join(",")}\n`,
-  );
-});
+const templateLink = qs("#template-link");
+if (templateLink) {
+  templateLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    downloadText(
+      "ttb-batch-template.csv",
+      `${templateHeaders.map(csvEscape).join(",")}\n${templateRow.map(csvEscape).join(",")}\n`,
+    );
+  });
+}
 
 function parseCsv(text) {
   const matrix = [];
@@ -616,7 +591,8 @@ function validateComparisonRows(rows) {
   });
 }
 
-qs("#compare-form").addEventListener("submit", async (event) => {
+const compareForm = qs("#compare-form");
+if (compareForm) compareForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   hideError(qs("#compare-error"));
   if (activeWorkflow) {
@@ -820,8 +796,10 @@ function renderComparisonSummary() {
   qs("#compare-completion").classList.remove("hidden");
 }
 
-qs("#print-screen-results").addEventListener("click", () => window.print());
-qs("#print-compare-results").addEventListener("click", () => window.print());
+const printScreenResults = qs("#print-screen-results");
+if (printScreenResults) printScreenResults.addEventListener("click", () => window.print());
+const printCompareResults = qs("#print-compare-results");
+if (printCompareResults) printCompareResults.addEventListener("click", () => window.print());
 
 function csvEscape(value) {
   const text = String(value ?? "");
