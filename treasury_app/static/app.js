@@ -391,8 +391,22 @@ async function processBatch(rows, imagesByName) {
           processing_ms: null,
           checks: [],
         };
-        batchResults.push(failure);
-        appendBatchRow(failure);
+        const resultIndex = batchResults.push(failure) - 1;
+        appendBatchRow(failure, async () => {
+          try {
+            const retriedResult = await submitReview(
+              application,
+              [imagesByName.get(row.image_filename)],
+            );
+            batchResults[resultIndex] = retriedResult;
+            renderBatchCompletion();
+            return retriedResult;
+          } catch (retryError) {
+            failure.summary = retryError.message;
+            renderBatchCompletion();
+            throw retryError;
+          }
+        });
       }
       completed += 1;
       bar.value = completed;
@@ -416,21 +430,50 @@ function updateProgress(completed, total) {
       : `${completed} of ${total} applications complete. You may review finished items below.`;
 }
 
-function appendBatchRow(result) {
+function appendBatchRow(result, retry = null) {
   const row = document.createElement("tr");
   const statusNames = {
     match: "Matches",
     attention: "Needs attention",
     unable: "Human review required",
   };
+  const guidance = element("td", "", result.summary);
+  if (retry) {
+    guidance.append(renderBatchRetry(retry, row));
+  }
   row.append(
     element("td", "", result.application_id || "Not supplied"),
     element("td", "", statusNames[result.overall_status]),
     renderPossibleIssues(result),
-    element("td", "", result.summary),
+    guidance,
     element("td", "", result.processing_ms === null ? "—" : `${result.processing_ms} ms`),
   );
   qs("#batch-result-body").append(row);
+  return row;
+}
+
+function renderBatchRetry(retry, originalRow) {
+  const container = element("div", "batch-retry");
+  const button = element("button", "secondary-button", "Retry this application");
+  const message = element("p", "batch-retry-message hidden");
+  button.type = "button";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Retrying…";
+    message.classList.add("hidden");
+    try {
+      const result = await retry();
+      const replacement = appendBatchRow(result);
+      originalRow.replaceWith(replacement);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Retry this application";
+      message.textContent = `Retry failed: ${error.message}`;
+      message.classList.remove("hidden");
+    }
+  });
+  container.append(button, message);
+  return container;
 }
 
 function renderPossibleIssues(result) {
