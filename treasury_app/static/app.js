@@ -11,9 +11,31 @@ const formError = qs("#form-error");
 const reviewButton = qs("#review-button");
 const imageInput = qs("#label-images");
 const selectedFiles = qs("#selected-files");
+const beverageTypeInput = qs("#beverage-type");
+const abvInput = qs("#abv");
+const proofField = qs("#proof-field");
+const abvOptional = qs("#abv-optional");
+const beverageProfileHint = qs("#beverage-profile-hint");
 
 let batchResults = [];
 const colasOnlineUrl = "https://www.ttbonline.gov/colasonline/";
+
+const beverageProfileCopy = {
+  distilled_spirits: "Proof is reviewed only for distilled spirits.",
+  wine: "Alcohol by volume may be optional for some wine labels; leave it blank only when the application does not supply it.",
+  malt_beverage: "Alcohol by volume may be optional for some malt beverage labels; leave it blank only when the application does not supply it.",
+};
+
+function applyBeverageProfile() {
+  const isDistilledSpirit = beverageTypeInput.value === "distilled_spirits";
+  proofField.classList.toggle("hidden", !isDistilledSpirit);
+  abvInput.required = isDistilledSpirit;
+  abvOptional.textContent = isDistilledSpirit ? "" : "(optional)";
+  beverageProfileHint.textContent = beverageProfileCopy[beverageTypeInput.value];
+}
+
+beverageTypeInput.addEventListener("change", applyBeverageProfile);
+applyBeverageProfile();
 
 function selectMode(mode) {
   const isSingle = mode === "single";
@@ -56,10 +78,13 @@ function applicationFromForm(form) {
   const data = new FormData(form);
   return {
     application_id: data.get("application_id") || null,
+    beverage_type: data.get("beverage_type"),
     brand_name: data.get("brand_name"),
     class_type: data.get("class_type"),
-    abv: Number(data.get("abv")),
-    proof: data.get("proof") ? Number(data.get("proof")) : null,
+    abv: data.get("abv") ? Number(data.get("abv")) : null,
+    proof: data.get("beverage_type") === "distilled_spirits" && data.get("proof")
+      ? Number(data.get("proof"))
+      : null,
     net_contents: data.get("net_contents"),
     producer_name_address: data.get("producer_name_address"),
     country_of_origin: data.get("country_of_origin") || null,
@@ -254,11 +279,11 @@ function hideError(container) {
 }
 
 const templateHeaders = [
-  "id", "brand_name", "class_type", "abv", "proof", "net_contents",
+  "id", "beverage_type", "brand_name", "class_type", "abv", "proof", "net_contents",
   "producer_name_address", "country_of_origin", "image_filename",
 ];
 const templateRow = [
-  "APP-001", "Old Tom Distillery", "Kentucky Straight Bourbon Whiskey",
+  "APP-001", "distilled_spirits", "Old Tom Distillery", "Kentucky Straight Bourbon Whiskey",
   "45", "90", "750 mL", "Old Tom Distillery, Louisville KY", "",
   "old-tom-front.jpg",
 ];
@@ -340,13 +365,20 @@ function parseCsv(text) {
 function validateBatchRows(rows) {
   if (rows.length > 300) throw new Error("A batch may contain no more than 300 applications.");
   rows.forEach((row, index) => {
-    for (const header of templateHeaders) {
+    for (const header of templateHeaders.filter((header) => header !== "beverage_type")) {
       if (!(header in row)) throw new Error(`Missing required CSV column: ${header}`);
     }
-    for (const field of ["id", "brand_name", "class_type", "abv", "net_contents", "producer_name_address", "image_filename"]) {
+    const beverageType = row.beverage_type || "distilled_spirits";
+    if (!Object.hasOwn(beverageProfileCopy, beverageType)) {
+      throw new Error(`Row ${index + 2} has an invalid beverage_type.`);
+    }
+    for (const field of ["id", "brand_name", "class_type", "net_contents", "producer_name_address", "image_filename"]) {
       if (!row[field]) throw new Error(`Row ${index + 2} is missing ${field}.`);
     }
-    if (!Number(row.abv)) throw new Error(`Row ${index + 2} has an invalid ABV.`);
+    if (beverageType === "distilled_spirits" && !row.abv) {
+      throw new Error(`Row ${index + 2} is missing ABV for a distilled spirit.`);
+    }
+    if (row.abv && !Number(row.abv)) throw new Error(`Row ${index + 2} has an invalid ABV.`);
   });
 }
 
@@ -372,10 +404,13 @@ async function processBatch(rows, imagesByName) {
       nextIndex += 1;
       const application = {
         application_id: row.id,
+        beverage_type: row.beverage_type || "distilled_spirits",
         brand_name: row.brand_name,
         class_type: row.class_type,
-        abv: Number(row.abv),
-        proof: row.proof ? Number(row.proof) : null,
+        abv: row.abv ? Number(row.abv) : null,
+        proof: (row.beverage_type || "distilled_spirits") === "distilled_spirits" && row.proof
+          ? Number(row.proof)
+          : null,
         net_contents: row.net_contents,
         producer_name_address: row.producer_name_address,
         country_of_origin: row.country_of_origin || null,
