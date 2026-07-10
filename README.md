@@ -245,7 +245,7 @@ GitHub Actions runs this suite for every pull request.
 ## Render deployment
 
 1. Create a Render Web Service connected to this repository.
-2. Select Python and a paid instance to avoid free-tier spin-down.
+2. Select Python and a free instance as it is sufficient.
 3. Add `MIMO_API_KEY` as a secret environment variable.
 4. Render will use [`render.yaml`](render.yaml), or configure manually:
 
@@ -253,9 +253,8 @@ GitHub Actions runs this suite for every pull request.
    - Start command:
      `gunicorn "app:create_app()" --worker-class gthread --workers 1 --threads 4 --timeout 60`
 
-No persistent disk is required. A 512 MB paid Starter instance should be
-sufficient for the baseline because model inference runs remotely; confirm with
-Render metrics under realistic uploads.
+No persistent disk is required. A free render plan instance should be
+sufficient for the baseline because model inference runs remotely.
 
 ## Assumptions
 
@@ -283,7 +282,7 @@ Render metrics under realistic uploads.
 
 ## Known limitations
 
-- The prototype covers common label comparisons for distilled spirits, wine,
+- The prototype was trained on common label comparisons for distilled spirits, wine,
   and malt beverages; it is not a comprehensive commodity-specific rules engine.
 - Model confidence is advisory and is never sufficient by itself to pass a
   check.
