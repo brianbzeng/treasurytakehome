@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+BeverageType = Literal["distilled_spirits", "wine", "malt_beverage"]
 
 
 class ApplicationData(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     application_id: str | None = None
+    beverage_type: BeverageType = "distilled_spirits"
     brand_name: str = Field(min_length=1, max_length=200)
     class_type: str = Field(min_length=1, max_length=300)
-    abv: float = Field(gt=0, le=100)
+    abv: float | None = Field(default=None, gt=0, le=100)
     proof: float | None = Field(default=None, gt=0, le=200)
     net_contents: str = Field(min_length=1, max_length=100)
     producer_name_address: str = Field(min_length=1, max_length=500)
@@ -23,6 +27,12 @@ class ApplicationData(BaseModel):
     @classmethod
     def empty_string_to_none(cls, value: object) -> object:
         return None if value == "" else value
+
+    @model_validator(mode="after")
+    def validate_profile_requirements(self) -> "ApplicationData":
+        if self.beverage_type == "distilled_spirits" and self.abv is None:
+            raise ValueError("Alcohol by volume is required for distilled spirits.")
+        return self
 
 
 class ExtractedField(BaseModel):

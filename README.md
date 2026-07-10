@@ -1,8 +1,8 @@
 # TTB Label Review Assistant
 
 A lightweight proof of concept that helps Alcohol and Tobacco Tax and Trade
-Bureau (TTB) reviewers compare distilled-spirit label artwork with application
-data. The application uses Xiaomi MiMo for visual text extraction and
+Bureau (TTB) reviewers compare label artwork with application data for
+distilled spirits, wine, and malt beverages. The application uses Xiaomi MiMo for visual text extraction and
 deterministic Python rules for every displayed match decision.
 
 > This prototype is decision support only. It does not issue Certificates of
@@ -13,8 +13,9 @@ deterministic Python rules for every displayed match decision.
 - Review one application with up to four label images.
 - Review a CSV batch with progressive results and bounded concurrency.
 - Extract label fields through the multimodal `mimo-v2.5` API.
-- Compare brand, class/type, ABV, proof, net contents, producer information,
-  country of origin, and the government warning.
+- Select a distilled-spirit, wine, or malt-beverage review profile.
+- Compare brand, class/type, ABV (when supplied), proof for distilled spirits,
+  net contents, producer information, country of origin, and the government warning.
 - Explain every result with expected values, observed values, and confidence.
 - Route uncertain or unreadable evidence to a human instead of guessing.
 - Present mismatches as possible issues for reviewer verification, never as a
@@ -41,7 +42,7 @@ Flask / Gunicorn
   ├─ input validation
   ├─ MiMo provider adapter
   ├─ Pydantic response validation
-  └─ deterministic compliance comparisons
+  └─ commodity-specific deterministic comparisons
           ↓
 Evidence-based result (Matches / Needs attention / Unable to verify)
 ```
@@ -101,11 +102,14 @@ the application filesystem or database.
 Download the template from the Batch review screen or create a UTF-8 CSV with:
 
 ```csv
-id,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
-APP-001,Old Tom Distillery,Kentucky Straight Bourbon Whiskey,45,90,750 mL,"Old Tom Distillery, Louisville KY",,old-tom-front.jpg
+id,beverage_type,brand_name,class_type,abv,proof,net_contents,producer_name_address,country_of_origin,image_filename
+APP-001,distilled_spirits,Old Tom Distillery,Kentucky Straight Bourbon Whiskey,45,90,750 mL,"Old Tom Distillery, Louisville KY",,old-tom-front.jpg
 ```
 
-`proof` and `country_of_origin` may be blank. Each row currently references one
+`beverage_type` may be `distilled_spirits`, `wine`, or `malt_beverage`; omitted
+values remain backward-compatible as `distilled_spirits`. `proof` and
+`country_of_origin` may be blank. Wine and malt-beverage rows may leave `abv`
+blank when the application does not supply it. Each row currently references one
 image. The browser submits at most two rows concurrently and displays results
 as they finish. Closing the browser stops an in-progress batch; a durable job
 queue is intentionally deferred from this baseline.
@@ -137,7 +141,8 @@ Render metrics under realistic uploads.
 
 ## Safety and known limitations
 
-- The prototype focuses on distilled spirits and common mandatory fields.
+- The prototype covers common label comparisons for distilled spirits, wine,
+  and malt beverages; it is not a comprehensive commodity-specific rules engine.
 - Model confidence is advisory and is never sufficient by itself to pass a
   check.
 - A photograph cannot establish physical font size without trustworthy scale
@@ -160,6 +165,7 @@ Render metrics under realistic uploads.
 2. Add targeted second-pass transcription for uncertain warning statements.
 3. Add optional OpenCV preprocessing and local OCR behind the same extraction
    interface when deployment capacity permits.
-4. Add wine and malt-beverage rule profiles.
+4. Add beverage-specific fields such as wine appellation/vintage and
+   malt-beverage composition statements.
 5. Add durable batch jobs, authentication, audit logs, and approved cloud
    storage for a production-oriented architecture.

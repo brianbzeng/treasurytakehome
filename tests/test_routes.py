@@ -49,6 +49,23 @@ def test_review_endpoint_returns_evidence_based_result(client):
     assert all(check["guidance_url"].startswith("https://www.ttb.gov/") for check in response.json["checks"])
 
 
+def test_review_endpoint_supports_wine_without_an_abv_statement(client):
+    payload = application_payload()
+    payload.update({"beverage_type": "wine", "class_type": "Red Wine"})
+    del payload["abv"]
+    del payload["proof"]
+    response = client.post(
+        "/api/review",
+        data={
+            "application": json.dumps(payload),
+            "images": (io.BytesIO(JPEG_BYTES), "label.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    assert "abv" not in {check["key"] for check in response.json["checks"]}
+
+
 def test_review_rejects_unsupported_file_type(client):
     response = client.post(
         "/api/review",

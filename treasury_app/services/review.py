@@ -7,6 +7,7 @@ import unicodedata
 
 from treasury_app.models import (
     ApplicationData,
+    BeverageType,
     ExtractedField,
     LabelExtraction,
     ReviewCheck,
@@ -75,6 +76,84 @@ GUIDANCE_REFERENCES: dict[str, tuple[str, str, str]] = {
         "distilled-spirits/ds-labeling-home/ds-health-warning",
         "TTB provides the required wording and the requirements for the uppercase, bold heading, legibility, placement, and type size.",
     ),
+}
+
+PROFILE_GUIDANCE: dict[BeverageType, dict[str, tuple[str, str, str]]] = {
+    "distilled_spirits": GUIDANCE_REFERENCES,
+    "wine": {
+        "brand_name": (
+            "TTB: Wine labeling guidance",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine",
+            "TTB's wine-labeling overview covers brand names, class/type designations, name and address, and other required label information.",
+        ),
+        "class_type": (
+            "TTB: Wine mandatory-label checklist",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine/wine-labeling-checklist-of-mandatory-label-information",
+            "Use TTB's checklist to verify the required wine class or type designation and related mandatory information.",
+        ),
+        "abv": (
+            "TTB: Wine alcohol content",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/wine-labeling-alcohol-content",
+            "Wine alcohol-content requirements vary by the product's alcohol level and class/type designation.",
+        ),
+        "net_contents": (
+            "TTB: Wine net contents",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine/wine-labeling-net-contents",
+            "TTB's wine net-contents guidance covers metric declarations, placement, and standards of fill.",
+        ),
+        "producer": (
+            "TTB: Wine mandatory-label checklist",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine/wine-labeling-checklist-of-mandatory-label-information",
+            "The checklist includes the required name-and-address statement for wine labels.",
+        ),
+        "country_of_origin": (
+            "TTB: Importing alcohol beverages",
+            "https://www.ttb.gov/images/pdfs/importing-alcohol-beverages-october-2022.pdf",
+            "TTB's import guide identifies country-of-origin labeling as a required item for imported alcohol beverages.",
+        ),
+        "government_warning": (
+            "TTB: Wine mandatory-label checklist",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling-wine/wine-labeling-checklist-of-mandatory-label-information",
+            "TTB's wine checklist includes the health warning statement among the mandatory label information.",
+        ),
+    },
+    "malt_beverage": {
+        "brand_name": (
+            "TTB: Malt beverage mandatory label information",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/malt-beverage-mandatory-label-information",
+            "TTB identifies the brand name as a mandatory statement for malt beverage labels.",
+        ),
+        "class_type": (
+            "TTB: Malt beverage class and type designation",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/malt-beverage-class-and-type",
+            "TTB explains required malt beverage class/type designations and specialty-product statements of composition.",
+        ),
+        "abv": (
+            "TTB: Malt beverage alcohol content",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/malt-beverage-alcohol-content",
+            "For malt beverages, TTB requires or permits alcohol-content statements under circumstances described in this guidance.",
+        ),
+        "net_contents": (
+            "TTB: Malt beverage net contents",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/malt-beverage-net-contents",
+            "TTB's malt-beverage net-contents guidance explains the required U.S. standard measures and acceptable metric equivalents.",
+        ),
+        "producer": (
+            "TTB: Malt beverage mandatory label information",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/malt-beverage-mandatory-label-information",
+            "TTB identifies the domestic/import name-and-address statement as mandatory malt beverage label information.",
+        ),
+        "country_of_origin": (
+            "TTB: Importing alcohol beverages",
+            "https://www.ttb.gov/images/pdfs/importing-alcohol-beverages-october-2022.pdf",
+            "TTB's import guide identifies country-of-origin labeling as a required item for imported alcohol beverages.",
+        ),
+        "government_warning": (
+            "TTB: Anatomy of a malt beverage label",
+            "https://www.ttb.gov/regulated-commodities/beverage-alcohol/beer/labeling/anatomy-of-a-malt-beverage-label-tool",
+            "TTB's label tool identifies the health warning statement as required for applicable alcoholic beverages.",
+        ),
+    },
 }
 
 
@@ -304,9 +383,9 @@ def numeric_check(
     )
 
 
-def attach_guidance(check: ReviewCheck) -> None:
+def attach_guidance(check: ReviewCheck, beverage_type: BeverageType) -> None:
     """Add a focused official reference to a check, when one is available."""
-    reference = GUIDANCE_REFERENCES.get(check.key)
+    reference = PROFILE_GUIDANCE[beverage_type].get(check.key)
     if reference is None:
         return
     check.guidance_title, check.guidance_url, check.guidance_summary = reference
@@ -331,18 +410,22 @@ def build_review(
             expected=application.class_type,
             field=extraction.class_type,
         ),
-        numeric_check(
-            key="abv",
-            label="Alcohol by volume",
-            expected=application.abv,
-            observed=parse_abv(extraction.alcohol_content.value),
-            observed_text=extraction.alcohol_content.value,
-            evidence=extraction.alcohol_content.evidence,
-            confidence=extraction.alcohol_content.confidence,
-        ),
     ]
 
-    if application.proof is not None:
+    if application.abv is not None:
+        checks.append(
+            numeric_check(
+                key="abv",
+                label="Alcohol by volume",
+                expected=application.abv,
+                observed=parse_abv(extraction.alcohol_content.value),
+                observed_text=extraction.alcohol_content.value,
+                evidence=extraction.alcohol_content.evidence,
+                confidence=extraction.alcohol_content.confidence,
+            )
+        )
+
+    if application.beverage_type == "distilled_spirits" and application.proof is not None:
         checks.append(
             numeric_check(
                 key="proof",
@@ -435,7 +518,7 @@ def build_review(
     )
 
     for check in checks:
-        attach_guidance(check)
+        attach_guidance(check, application.beverage_type)
 
     statuses = {check.status for check in checks}
     if "mismatch" in statuses:

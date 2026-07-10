@@ -70,6 +70,15 @@
                 <label for="application-id">Application ID <span class="optional">(optional)</span></label>
                 <input id="application-id" name="application_id" autocomplete="off">
               </div>
+              <div class="field full-width">
+                <label for="beverage-type">Beverage type</label>
+                <select id="beverage-type" name="beverage_type">
+                  <option value="distilled_spirits" selected>Distilled spirits</option>
+                  <option value="wine">Wine</option>
+                  <option value="malt_beverage">Malt beverage / beer</option>
+                </select>
+                <p id="beverage-profile-hint" class="hint">Proof is reviewed only for distilled spirits.</p>
+              </div>
               <div class="field">
                 <label for="brand-name">Brand name</label>
                 <input id="brand-name" name="brand_name" required
@@ -80,12 +89,12 @@
                 <input id="class-type" name="class_type" required
                        value="Kentucky Straight Bourbon Whiskey">
               </div>
-              <div class="field">
-                <label for="abv">Alcohol by volume (%)</label>
+              <div class="field" id="abv-field">
+                <label for="abv">Alcohol by volume (%) <span id="abv-optional" class="optional"></span></label>
                 <input id="abv" name="abv" type="number" min="0.1" max="100"
                        step="0.1" inputmode="decimal" required value="45">
               </div>
-              <div class="field">
+              <div class="field" id="proof-field">
                 <label for="proof">Proof <span class="optional">(optional)</span></label>
                 <input id="proof" name="proof" type="number" min="0.1" max="200"
                        step="0.1" inputmode="decimal" value="90">

@@ -78,6 +78,41 @@ def test_matching_extraction_passes_all_checks():
     assert all(check.status == "match" for check in result.checks)
 
 
+def test_wine_profile_allows_an_omitted_abv_and_uses_wine_guidance():
+    application = sample_application(
+        beverage_type="wine",
+        abv=None,
+        proof=None,
+        class_type="Red Wine",
+    )
+    result = build_review(
+        application,
+        mock_extraction(),
+        provider_name="Mock provider",
+    )
+    assert result.overall_status == "match"
+    assert "abv" not in {check.key for check in result.checks}
+    assert "proof" not in {check.key for check in result.checks}
+    net_contents = next(check for check in result.checks if check.key == "net_contents")
+    assert "wine" in net_contents.guidance_title.lower()
+
+
+def test_malt_beverage_profile_skips_proof_and_uses_malt_guidance():
+    application = sample_application(
+        beverage_type="malt_beverage",
+        proof=80,
+        class_type="India Pale Ale",
+    )
+    result = build_review(
+        application,
+        mock_extraction(),
+        provider_name="Mock provider",
+    )
+    assert "proof" not in {check.key for check in result.checks}
+    class_type = next(check for check in result.checks if check.key == "class_type")
+    assert "malt beverage" in class_type.guidance_title.lower()
+
+
 def test_abv_difference_requires_attention():
     result = build_review(
         sample_application(abv=40),

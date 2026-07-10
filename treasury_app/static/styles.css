@@ -25,11 +25,11 @@
 
 body { margin: 0; line-height: 1.55; }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 
 button, input[type="file"] { min-height: 44px; }
 
-button:focus-visible, input:focus-visible, a:focus-visible {
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
   outline: 4px solid var(--focus);
   outline-offset: 3px;
 }
@@ -158,7 +158,7 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 label { font-weight: 750; }
 .optional, .hint { color: var(--muted); font-weight: 400; font-size: .9rem; }
 
-input:not([type="file"]) {
+input:not([type="file"]), select {
   width: 100%;
   padding: .65rem .75rem;
   color: var(--ink);

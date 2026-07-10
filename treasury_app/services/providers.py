@@ -44,6 +44,11 @@ SYSTEM_PROMPT = """
 You extract evidence from United States alcohol beverage label artwork.
 Return JSON only.
 
+The application identifies the beverage type as distilled spirits, wine, or
+malt beverage. Use that profile only to interpret the requested evidence:
+proof applies only to distilled spirits, so return null for proof on wine and
+malt beverage labels. Do not infer a commodity-specific compliance decision.
+
 You will receive expected text candidates from an application for the brand,
 class/type, producer/address, and possibly country of origin. Your role for
 those fields is to locate the expected candidate in the artwork, not to decide
@@ -193,6 +198,7 @@ class MiMoProvider:
                     "product label. Return one combined JSON object.\n\n"
                     "Expected text candidates to locate (these are search "
                     "targets, not text to repeat unless visible):\n"
+                    f"- Beverage type: {application.beverage_type.replace('_', ' ')}\n"
                     f"- Brand name: {application.brand_name}\n"
                     f"- Class or type: {application.class_type}\n"
                     f"- Producer name and address: "
