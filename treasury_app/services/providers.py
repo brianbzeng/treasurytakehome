@@ -84,6 +84,12 @@ value (for example, “Mexico”) and the complete visible phrase in evidence. I
 the stated country differs from the application candidate, still return the
 actual country value; do not return null merely because it differs.
 
+Country statements may use a local-language country name. Treat a translated
+country name as the same country for the expected-value check: for example,
+“Italia” supports “Italy”, “España” supports “Spain”, and “Deutschland”
+supports “Germany”. Do not use a city, region, or a producer-address line by
+itself as a country-of-origin statement.
+
 For alcohol content, proof, and net contents, transcribe only what is visibly
 present. Do not provide a compliance verdict.
 
@@ -120,6 +126,12 @@ proof must contain only the degrees-proof statement (for example, “80 Proof”
 Never use an ABV number as proof or a proof number as ABV. If one statement is
 not confidently visible, return null for that field rather than copying the
 other statement.
+
+For numeric statements, preserve the wording exactly as it appears. A decimal
+comma is equivalent to a decimal point (for example, “12,5% vol.” means 12.5%
+ABV). For metric net contents, a trailing standalone `e` or `℮` is the
+estimated-quantity mark, not part of the volume (for example, “1,5 l e” means
+1.5 L). Do not treat either notation as a discrepancy.
 """.strip()
 
 
