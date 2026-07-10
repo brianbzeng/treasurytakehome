@@ -9,7 +9,9 @@ evidence-based observations.
 > This prototype is decision support only. It does not issue Certificates of
 > Label Approval or replace review by an authorized TTB specialist.
 
-## What the baseline supports
+**Live prototype:** <https://treasury.brianbzeng.com>
+
+## Approach
 
 - Compare one label and its submitted application values without requiring the
   reviewer to select a beverage type or Product Class/Type code.
@@ -17,7 +19,7 @@ evidence-based observations.
   typed application data.
 - Compare as many as 300 CSV application rows with their referenced label
   images when expected-versus-observed screening is needed.
-- Process both workflows progressively with two concurrent requests and
+- Process image batches progressively with two concurrent requests and
   per-item retries.
 - Extract label fields through the multimodal `mimo-v2.5` API.
 - Identify the beverage profile and visible brand, class/type, alcohol statement,
@@ -34,8 +36,28 @@ evidence-based observations.
   approves or transmits an application.
 - Run without OpenCV, PaddleOCR, Redis, or persistent file storage.
 
+The workflow intentionally separates three jobs that have different certainty:
+
+1. **Review one label** compares submitted values to one label and up to four
+   label views.
+2. **Quick label scan** accepts images only and highlights possible visible
+   review items; it never claims an application mismatch.
+3. **Review a batch** uses a CSV manifest and matching images for the most
+   structured, field-by-field comparison.
+
 The original take-home prompt is preserved in
 [`docs/ASSESSMENT.md`](docs/ASSESSMENT.md).
+
+## Tools used
+
+- **Python 3.11, Flask, Jinja, and vanilla JavaScript/CSS** for a small,
+  server-rendered application with no front-end build step.
+- **Xiaomi MiMo `mimo-v2.5`** as the remote multimodal image/OCR provider.
+- **Pydantic** to validate model responses before review logic uses them.
+- **Deterministic Python comparison and normalization rules** for ABV/proof,
+  volume, text matching, and status aggregation.
+- **pytest and GitHub Actions** for automated regression tests.
+- **Gunicorn and Render** for hosted deployment.
 
 ## Architecture
 
@@ -60,7 +82,7 @@ Evidence-based result (No review item / Possible review item / Difference / Unab
 The model extracts observations only. Deterministic rules convert them into
 cautious review leads; neither layer makes a final compliance determination.
 
-## Local setup
+## Setup and run
 
 Prerequisites:
 
@@ -171,6 +193,8 @@ The tests cover both API workflows, normalization, fuzzy-name handling,
 ABV/proof arithmetic, volume normalization, warning-heading handling, status
 aggregation, request validation, and mock-provider behavior.
 
+GitHub Actions runs this suite for every pull request.
+
 ## Render deployment
 
 1. Create a Render Web Service connected to this repository.
@@ -186,7 +210,7 @@ No persistent disk is required. A 512 MB paid Starter instance should be
 sufficient for the baseline because model inference runs remotely; confirm with
 Render metrics under realistic uploads.
 
-## Safety and known limitations
+## Assumptions and deliberate limitations
 
 - The prototype covers common label comparisons for distilled spirits, wine,
   and malt beverages; it is not a comprehensive commodity-specific rules engine.
@@ -206,6 +230,32 @@ Render metrics under realistic uploads.
   production queue. A future iteration could add Render Key Value and a worker.
 - Results and retries are browser-local and are not an approval, durable audit
   record, or submission to COLAs Online.
+
+## Pull request delivery log
+
+Every implementation change was delivered through a pull request:
+
+| PR | Summary |
+| --- | --- |
+| [#1](https://github.com/brianbzeng/treasurytakehome/pull/1) | Established the Flask/MiMo label-review baseline. |
+| [#2](https://github.com/brianbzeng/treasurytakehome/pull/2) | Added possible-issue guidance to review results. |
+| [#3](https://github.com/brianbzeng/treasurytakehome/pull/3) | Made expected text verification evidence-based rather than a loose OCR match. |
+| [#4](https://github.com/brianbzeng/treasurytakehome/pull/4) | Added reviewer continuation controls and focused TTB guidance links. |
+| [#5](https://github.com/brianbzeng/treasurytakehome/pull/5) | Improved government-warning output and batch-result layout. |
+| [#6](https://github.com/brianbzeng/treasurytakehome/pull/6) | Separated ABV and proof extraction and comparison. |
+| [#7](https://github.com/brianbzeng/treasurytakehome/pull/7) | Relaxed government-warning screening to avoid unreliable typography claims. |
+| [#8](https://github.com/brianbzeng/treasurytakehome/pull/8) | Refined matching language and producer-evidence handling. |
+| [#9](https://github.com/brianbzeng/treasurytakehome/pull/9) | Recognized legal-suffix variants in brand-name evidence. |
+| [#10](https://github.com/brianbzeng/treasurytakehome/pull/10) | Recovered malformed batch results and added country-of-origin comparison. |
+| [#11](https://github.com/brianbzeng/treasurytakehome/pull/11) | Added wine and malt-beverage review profiles. |
+| [#12](https://github.com/brianbzeng/treasurytakehome/pull/12) | Constrained capacity entry and aligned form labels with COLA terminology. |
+| [#13](https://github.com/brianbzeng/treasurytakehome/pull/13) | Simplified batch results and normalized common European label conventions. |
+| [#14](https://github.com/brianbzeng/treasurytakehome/pull/14) | Added per-item retry for failed batch reviews. |
+| [#15](https://github.com/brianbzeng/treasurytakehome/pull/15) | Improved MiMo failure recovery and added reviewer-friendly save/print output. |
+| [#16](https://github.com/brianbzeng/treasurytakehome/pull/16) | Added an image-only label-screening path. |
+| [#17](https://github.com/brianbzeng/treasurytakehome/pull/17) | Combined individual review, quick scan, and CSV batch comparison. |
+| [#18](https://github.com/brianbzeng/treasurytakehome/pull/18) | Restored individual review without requiring a beverage-type dropdown. |
+| [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
 
 ## Planned follow-up
 
