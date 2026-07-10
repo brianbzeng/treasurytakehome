@@ -48,11 +48,12 @@ The workflow intentionally separates three jobs that have different certainty:
 ### Design decisions and attention to detail
 
 - I kept image extraction behind a provider interface and used a hosted vision
-  model instead of bundling OpenCV and PaddleOCR. This kept the Render service
-  small while leaving a clean path for local preprocessing or OCR later.
+  model instead of the original plan to bundle OpenCV and PaddleOCR. This kept the
+  Render service small while leaving a clean path for local preprocessing or OCR later
+  if needed.
 - I separated probabilistic extraction from deterministic comparison. MiMo
   identifies visible evidence; Python validates the response, normalizes it,
-  and decides whether the result is a match, a possible difference, or unable
+  and decides whether the result is a match, a possible difference, or unable to
   to verify.
 - I removed the full Product Class/Type dropdown after reviewing the size of
   the TTB lookup list. Reviewers enter the designation already on the
@@ -70,14 +71,14 @@ The workflow intentionally separates three jobs that have different certainty:
   boldness, type size, wording, or placement. Those details remain explicit
   human-review items.
 - I designed for failure as part of the normal workflow: malformed model JSON
-  is recovered when safe, uncertain evidence is routed to a reviewer, failed
+  is recovered when safe, uncertain evidence is routed to a reviewer, and failed
   batch items can be retried individually, and the summary recalculates after a
   successful retry.
 - I kept the interface direct for reviewers with different levels of technical
   comfort: three dedicated pages, plain-language statuses, focused TTB links,
   visible progress, keyboard focus states, and save/print output.
 - I validated MIME types and file signatures, limited request and batch sizes,
-  avoided persistent uploads, and kept COLAs Online as an external link rather
+  avoided persistent uploads, and kept COLAs Online as an external link rather than
   than implying that the prototype submits or approves an application.
 
 My main concern was false confidence. Stylized labels can make brand, producer,
@@ -326,9 +327,7 @@ Every repository change was delivered through a pull request:
 | [#17](https://github.com/brianbzeng/treasurytakehome/pull/17) | Combined individual review, quick scan, and CSV batch comparison. |
 | [#18](https://github.com/brianbzeng/treasurytakehome/pull/18) | Restored individual review without requiring a beverage-type dropdown. |
 | [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
-| [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Prepared the evaluator-facing setup, architecture, assumptions, and delivery documentation. |
-| [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, attention to detail, and primary project concerns. |
-| [#22](https://github.com/brianbzeng/treasurytakehome/pull/22) | Condensed AI usage into the tools table and separated project assumptions from known limitations. |
+PR 20-22 readme adjustments/edits
 
 ## Planned follow-up
 
