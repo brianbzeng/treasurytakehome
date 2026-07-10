@@ -108,7 +108,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 
 .mode-switcher {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: .75rem;
   margin: 2rem 0 1.5rem;
 }
@@ -246,6 +246,7 @@ input:not([type="file"]), select {
 .override-control.compact { min-width: 12rem; margin: 0; padding: .65rem; }
 .override-control.compact .override-button { width: 100%; padding: .55rem .65rem; font-size: .9rem; }
 .override-control.compact .override-confirmation { font-size: .88rem; }
+.print-individual { margin-top: 1.25rem; }
 
 .text-link { color: var(--blue); font-weight: 750; }
 .batch-progress { margin-top: 1.5rem; }
@@ -287,13 +288,14 @@ footer { padding: 1.5rem; text-align: center; color: var(--muted); border-top: 1
   :root { font-size: 11px; background: var(--white); }
   body { background: var(--white); }
   .site-header, .mock-banner, .intro, .mode-switcher,
-  #screen-form, #screen-progress, #compare-panel > .form-card, #compare-progress,
+  #individual-form, #screen-form, #screen-progress, #compare-panel > .form-card, #compare-progress,
   #print-screen-results, #print-compare-results, footer,
+  .print-individual,
   .batch-completion .secondary-button, .batch-retry {
     display: none !important;
   }
   .page-shell { max-width: none; padding: 0; }
-  #screen-results, #compare-results { display: block !important; }
+  #individual-result, #screen-results, #compare-results { display: block !important; }
   .result-region { margin: 0; padding: 0; border: 0; box-shadow: none; }
   .batch-result-heading { display: block; }
   .batch-advisory { margin-top: .5rem; }

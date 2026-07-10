@@ -190,16 +190,18 @@ SYSTEM_PROMPT = """
 You extract evidence from United States alcohol beverage label artwork.
 Return JSON only.
 
-The application identifies the beverage type as distilled spirits, wine, or
-malt beverage. Use that profile only to interpret the requested evidence:
-proof applies only to distilled spirits, so return null for proof on wine and
-malt beverage labels. Do not infer a commodity-specific compliance decision.
+First infer only a broad beverage profile from the visible label: distilled
+spirits, wine, malt beverage, or null. Do not map the product to a specific
+TTB Product Class/Type code and do not make a commodity-specific compliance
+decision. Use the broad profile only to interpret the requested evidence: proof
+normally applies to distilled spirits, so return null for proof on wine and
+malt beverage labels.
 
-For a label-only screen, no application candidates are supplied. Identify the
-beverage_type as exactly `distilled_spirits`, `wine`, `malt_beverage`, or null,
-then extract the most clearly visible value for each field. Set
-expected_value_found to null in this mode. Do not claim that a legal statement
-is absent or noncompliant; return null when a value is not confidently visible.
+Return beverage_type as exactly `distilled_spirits`, `wine`, `malt_beverage`,
+or null, then extract the most clearly visible value for each field. For a
+label-only screen, no application candidates are supplied, so set
+expected_value_found to null. Do not claim that a legal statement is absent or
+noncompliant; return null when a value is not confidently visible.
 
 You will receive expected text candidates from an application for the brand,
 class/type, producer/address, and possibly country of origin. Your role for
@@ -398,6 +400,11 @@ class MiMoProvider:
         images: list[ImageInput],
         application: ApplicationData,
     ) -> LabelExtraction:
+        beverage_profile_target = (
+            application.beverage_type.replace("_", " ")
+            if application.beverage_type is not None
+            else "Determine from the visible label"
+        )
         content = self._image_content(images)
         content.append(
             {
@@ -407,7 +414,7 @@ class MiMoProvider:
                     "product label. Return one combined JSON object.\n\n"
                     "Expected text candidates to locate (these are search "
                     "targets, not text to repeat unless visible):\n"
-                    f"- Beverage type: {application.beverage_type.replace('_', ' ')}\n"
+                    f"- Beverage profile: {beverage_profile_target}\n"
                     f"- Brand name: {application.brand_name}\n"
                     f"- Class or type: {application.class_type}\n"
                     f"- Producer name and address: "

@@ -19,17 +19,20 @@ JPEG_BYTES = b"\xff\xd8\xff\xe0mock-jpeg"
 PNG_BYTES = b"\x89PNG\r\n\x1a\nmock-png"
 
 
-def test_index_exposes_quick_and_csv_modes(client):
+def test_index_exposes_individual_quick_and_csv_modes(client):
     response = client.get("/")
     assert response.status_code == 200
     assert b"TTB Label Review Assistant" in response.data
     assert b"Mock mode is active" in response.data
     assert b"AI-assisted guidance only" in response.data
+    assert b"Review one label" in response.data
+    assert b"Submitted application values" in response.data
     assert b"Quick label scan" in response.data
     assert b"Choose one to 100 label images" in response.data
-    assert b"Compare with application data" in response.data
+    assert b"Review a batch" in response.data
     assert b"CSV manifest" in response.data
     assert b"Download CSV template" in response.data
+    assert b'individual-beverage-type' not in response.data
 
 
 def test_health_reports_provider(client):

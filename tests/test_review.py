@@ -86,6 +86,32 @@ def test_matching_extraction_passes_all_checks():
     assert all(check.status == "match" for check in result.checks)
 
 
+def test_label_inferred_profile_supports_a_comparison_without_a_dropdown_value():
+    application = sample_application(beverage_type=None)
+    result = build_review(
+        application,
+        mock_extraction(),
+        provider_name="Mock provider",
+    )
+
+    proof = next(check for check in result.checks if check.key == "proof")
+    assert proof.status == "match"
+    assert proof.guidance_title == "TTB: Alcohol content statement requirements"
+
+
+def test_inferred_distilled_profile_routes_a_missing_submitted_abv_to_review():
+    result = build_review(
+        sample_application(beverage_type=None, abv=None),
+        mock_extraction(),
+        provider_name="Mock provider",
+    )
+
+    abv = next(check for check in result.checks if check.key == "abv")
+    assert result.overall_status == "unable"
+    assert abv.status == "review"
+    assert abv.expected == "Not supplied"
+
+
 def test_wine_profile_allows_an_omitted_abv_and_uses_wine_guidance():
     application = sample_application(
         beverage_type="wine",
