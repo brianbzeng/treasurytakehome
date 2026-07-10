@@ -32,8 +32,8 @@
         <p class="eyebrow">Alcohol label screening</p>
         <h1 id="page-heading">Choose the level of label review you need</h1>
         <p>
-          Run a quick image-only diagnostic, or compare labels against structured
-          application data for more confident discrepancy screening.
+          Compare one label with its submitted values, run a quick image-only
+          diagnostic, or review a larger CSV-backed batch.
         </p>
         <div class="advisory" role="note">
           <strong>AI-assisted guidance only.</strong> These tools do not approve,
@@ -43,17 +43,110 @@
       </section>
 
       <div class="mode-switcher" role="tablist" aria-label="Screening mode">
-        <button id="quick-tab" class="mode-button active" type="button" role="tab"
-                aria-selected="true" aria-controls="quick-panel">
+        <button id="individual-tab" class="mode-button active" type="button" role="tab"
+                aria-selected="true" aria-controls="individual-panel">
+          Review one label
+        </button>
+        <button id="quick-tab" class="mode-button" type="button" role="tab"
+                aria-selected="false" aria-controls="quick-panel" tabindex="-1">
           Quick label scan
         </button>
         <button id="compare-tab" class="mode-button" type="button" role="tab"
                 aria-selected="false" aria-controls="compare-panel" tabindex="-1">
-          Compare with application data
+          Review a batch
         </button>
       </div>
 
-      <section id="quick-panel" role="tabpanel" aria-labelledby="quick-tab">
+      <section id="individual-panel" role="tabpanel" aria-labelledby="individual-tab">
+        <form id="individual-form" class="review-form">
+          <div class="form-card">
+            <div class="step-heading">
+              <span class="step-number" aria-hidden="true">1</span>
+              <div>
+                <h2>Submitted application values</h2>
+                <p>
+                  Enter the values for one label. The assistant infers the broad
+                  beverage profile from the label, so no product-class dropdown is needed.
+                </p>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="individual-brand-name">Brand name</label>
+                <input id="individual-brand-name" name="brand_name" required>
+              </div>
+              <div class="field">
+                <label for="individual-class-type">Class/type designation</label>
+                <input id="individual-class-type" name="class_type" required>
+              </div>
+              <div class="field">
+                <label for="individual-abv">Alcohol by volume (%) <span class="optional">(if supplied)</span></label>
+                <input id="individual-abv" name="abv" type="number" min="0.1" max="100"
+                       step="0.1" inputmode="decimal">
+                <p class="hint">If the label is inferred to be distilled spirits, a missing submitted ABV is routed to human review.</p>
+              </div>
+              <div class="field">
+                <label for="individual-proof">Proof <span class="optional">(if supplied)</span></label>
+                <input id="individual-proof" name="proof" type="number" min="0.1" max="200"
+                       step="0.1" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label for="individual-net-contents-value">Total bottle capacity</label>
+                <div class="capacity-input">
+                  <input id="individual-net-contents-value" name="net_contents_value" type="number"
+                         min="0.1" step="0.1" inputmode="decimal" required>
+                  <select id="individual-net-contents-unit" name="net_contents_unit"
+                          aria-label="Total bottle capacity unit">
+                    <option value="mL" selected>mL</option>
+                    <option value="cL">cL</option>
+                    <option value="L">L</option>
+                    <option value="fl oz">fl oz</option>
+                    <option value="pint">pint</option>
+                    <option value="quart">quart</option>
+                    <option value="gallon">gallon</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label for="individual-country-origin">Country of origin <span class="optional">(imports only)</span></label>
+                <input id="individual-country-origin" name="country_of_origin">
+              </div>
+              <div class="field full-width">
+                <label for="individual-producer">Name and address of applicant</label>
+                <input id="individual-producer" name="producer_name_address" required
+                       autocomplete="organization">
+                <p class="hint">As shown on the plant registry, basic permit, or brewer's notice.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="step-heading">
+              <span class="step-number" aria-hidden="true">2</span>
+              <div>
+                <h2>Label artwork</h2>
+                <p>Add clear front, back, or side views. Up to four images.</p>
+              </div>
+            </div>
+            <div class="upload-area">
+              <label for="individual-images">Choose label images</label>
+              <input id="individual-images" name="images" type="file"
+                     accept="image/jpeg,image/png,image/webp" multiple required>
+              <p class="hint">JPEG, PNG, or WebP. Up to four images with a combined limit of {{ max_upload_mb }} MB.</p>
+              <ul id="individual-selected-files" class="file-list" aria-live="polite"></ul>
+            </div>
+          </div>
+
+          <div id="individual-error" class="alert error hidden" role="alert" tabindex="-1"></div>
+          <button id="individual-button" class="primary-button" type="submit">
+            Review this label
+          </button>
+        </form>
+        <section id="individual-result" class="result-region hidden" aria-live="polite"
+                 aria-labelledby="individual-result-heading"></section>
+      </section>
+
+      <section id="quick-panel" class="hidden" role="tabpanel" aria-labelledby="quick-tab">
         <form id="screen-form" class="review-form">
           <div class="form-card">
             <div class="step-heading">
@@ -131,7 +224,8 @@
               <h2>Application comparison</h2>
               <p>
                 Upload a CSV manifest and its referenced label images. This mode
-                compares supplied application values with visible label evidence.
+                compares supplied application values with visible label evidence;
+                it infers the broad beverage profile from each label.
               </p>
             </div>
           </div>

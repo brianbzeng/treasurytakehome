@@ -469,6 +469,7 @@ def build_review(
             field=extraction.class_type,
         ),
     ]
+    beverage_type = application.beverage_type or extraction.beverage_type
 
     if application.abv is not None:
         checks.append(
@@ -482,8 +483,24 @@ def build_review(
                 confidence=extraction.alcohol_content.confidence,
             )
         )
+    elif beverage_type == "distilled_spirits":
+        checks.append(
+            ReviewCheck(
+                key="abv",
+                label="Alcohol by volume",
+                status="review",
+                expected="Not supplied",
+                observed=extraction.alcohol_content.value or "Not confidently read",
+                explanation=(
+                    "The label was inferred to be a distilled-spirit product, but no "
+                    "submitted ABV was available for comparison."
+                ),
+                evidence=extraction.alcohol_content.evidence,
+                confidence=extraction.alcohol_content.confidence,
+            )
+        )
 
-    if application.beverage_type == "distilled_spirits" and application.proof is not None:
+    if application.proof is not None and beverage_type not in {"malt_beverage", "wine"}:
         checks.append(
             numeric_check(
                 key="proof",
@@ -575,8 +592,9 @@ def build_review(
         )
     )
 
-    for check in checks:
-        attach_guidance(check, application.beverage_type)
+    if beverage_type is not None:
+        for check in checks:
+            attach_guidance(check, beverage_type)
 
     statuses = {check.status for check in checks}
     comparison_statuses = {
