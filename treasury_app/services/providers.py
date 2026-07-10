@@ -59,6 +59,14 @@ For each expected text candidate:
 - Do not copy a candidate into value or evidence unless it is actually visible
   in the artwork.
 
+For brand_name, this is an evidence-location check, not a judgment about which
+text is visually most prominent. Search the entire label, including a
+“Bottled by,” “Produced by,” or logo statement. Treat common legal-name suffix
+variants as the same name when every other word matches: COMPANY/CO.,
+INCORPORATED/INC., CORPORATION/CORP., and LIMITED/LTD. For example,
+“SHARPTOP DISTILLING CO.” supports “SHARPTOP DISTILLING COMPANY.” Cite the
+visible label wording as evidence and set expected_value_found to true.
+
 For producer_name_address specifically, inspect the name-and-address statement
 separately. Treat the expected producer as located when the same business name
 and city/state are visible, even if the label adds a phrase such as “Produced

@@ -88,6 +88,17 @@ def normalize_text(value: str | None) -> str:
     return " ".join(normalized.split())
 
 
+def normalize_business_name(value: str | None) -> str:
+    """Normalize common legal-entity suffix variants for evidence matching."""
+    suffixes = {
+        "co": "company",
+        "inc": "incorporated",
+        "corp": "corporation",
+        "ltd": "limited",
+    }
+    return " ".join(suffixes.get(word, word) for word in normalize_text(value).split())
+
+
 def normalize_warning(value: str | None) -> str:
     return " ".join((value or "").split())
 
@@ -148,19 +159,25 @@ def compare_text(
             evidence=field.evidence,
             confidence=field.confidence,
         )
-    if field.expected_value_found is True and field.evidence:
+    observed_evidence = field.evidence or field.value
+    business_name_matches = (
+        key in {"brand_name", "producer"}
+        and bool(field.value)
+        and normalize_business_name(expected) == normalize_business_name(field.value)
+    )
+    if observed_evidence and (field.expected_value_found is True or business_name_matches):
         return ReviewCheck(
             key=key,
             label=label,
             status="match" if field.confidence >= MIN_CONFIDENCE else "review",
             expected=expected,
-            observed=field.evidence,
+            observed=observed_evidence,
             explanation=(
                 "The expected application value was located in the visible label text."
                 if field.confidence >= MIN_CONFIDENCE
                 else "The expected application value may be visible, but the image-reading confidence is low."
             ),
-            evidence=field.evidence,
+            evidence=observed_evidence,
             confidence=field.confidence,
         )
 
