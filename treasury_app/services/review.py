@@ -99,6 +99,17 @@ def normalize_business_name(value: str | None) -> str:
     return " ".join(suffixes.get(word, word) for word in normalize_text(value).split())
 
 
+def normalize_country(value: str | None) -> str:
+    normalized = normalize_text(value)
+    normalized = re.sub(r"^(?:product|made|produced) of ", "", normalized)
+    aliases = {
+        "us": "united states",
+        "usa": "united states",
+        "united states of america": "united states",
+    }
+    return aliases.get(normalized, normalized)
+
+
 def normalize_warning(value: str | None) -> str:
     return " ".join((value or "").split())
 
@@ -191,6 +202,61 @@ def compare_text(
             "The expected application value was not confidently located in the label artwork. "
             "This is a possible review item, not proof that the value is absent or incorrect."
         ),
+        evidence=field.evidence,
+        confidence=field.confidence,
+    )
+
+
+def compare_country(*, expected: str | None, field: ExtractedField) -> ReviewCheck:
+    if not expected:
+        return ReviewCheck(
+            key="country_of_origin",
+            label="Country of origin",
+            status="match",
+            expected="Not applicable",
+            observed=field.value,
+            explanation="This field is not required for the supplied application.",
+            evidence=field.evidence,
+            confidence=field.confidence,
+        )
+
+    observed = field.evidence or field.value
+    if not field.value:
+        return ReviewCheck(
+            key="country_of_origin",
+            label="Country of origin",
+            status="review",
+            expected=expected,
+            observed="Not confidently located",
+            explanation=(
+                "The country-of-origin statement was not confidently located in the "
+                "label artwork. This requires reviewer confirmation."
+            ),
+            evidence=field.evidence,
+            confidence=field.confidence,
+        )
+
+    if normalize_country(expected) == normalize_country(field.value):
+        status = "match" if field.confidence >= MIN_CONFIDENCE else "review"
+        explanation = (
+            "The country-of-origin statement matches the application."
+            if status == "match"
+            else "The country appears to match, but image-reading confidence is low."
+        )
+    else:
+        status = "mismatch" if field.confidence >= MIN_CONFIDENCE else "review"
+        explanation = (
+            "The country-of-origin statement does not match the application."
+            if status == "mismatch"
+            else "The country may differ, but image-reading confidence is low."
+        )
+    return ReviewCheck(
+        key="country_of_origin",
+        label="Country of origin",
+        status=status,
+        expected=expected,
+        observed=observed,
+        explanation=explanation,
         evidence=field.evidence,
         confidence=field.confidence,
     )
@@ -325,12 +391,9 @@ def build_review(
                 expected=application.producer_name_address,
                 field=extraction.producer_name_address,
             ),
-            compare_text(
-                key="country_of_origin",
-                label="Country of origin",
+            compare_country(
                 expected=application.country_of_origin,
                 field=extraction.country_of_origin,
-                required=bool(application.country_of_origin),
             ),
         ]
     )

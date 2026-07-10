@@ -4,6 +4,7 @@ from treasury_app.services.review import (
     GOVERNMENT_WARNING,
     build_review,
     normalize_business_name,
+    normalize_country,
     normalize_text,
     parse_abv,
     parse_proof,
@@ -35,6 +36,8 @@ def test_normalization_handles_case_and_punctuation():
     assert normalize_business_name("Sharptop Distilling Co.") == normalize_business_name(
         "SHARPTOP DISTILLING COMPANY"
     )
+    assert normalize_country("Product of Mexico") == "mexico"
+    assert normalize_country("USA") == "united states"
 
 
 def test_brand_company_suffix_variant_is_matching_evidence():
@@ -121,6 +124,24 @@ def test_unread_proof_is_review_instead_of_using_abv_as_proof():
     proof = next(check for check in result.checks if check.key == "proof")
     assert proof.status == "review"
     assert proof.observed == "Not confidently read"
+
+
+def test_country_origin_compares_the_visible_country_not_the_expected_search_text():
+    extraction = mock_extraction()
+    extraction.country_of_origin = ExtractedField(
+        value="Mexico",
+        evidence="PRODUCT OF MEXICO",
+        expected_value_found=False,
+        confidence=0.99,
+    )
+    result = build_review(
+        sample_application(country_of_origin="United States"),
+        extraction,
+        provider_name="Mock provider",
+    )
+    country = next(check for check in result.checks if check.key == "country_of_origin")
+    assert country.status == "mismatch"
+    assert country.observed == "PRODUCT OF MEXICO"
 
 
 def test_every_review_check_has_focused_ttb_guidance():
