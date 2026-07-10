@@ -167,6 +167,8 @@ input:not([type="file"]), select {
   border-radius: .2rem;
 }
 
+.capacity-input { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: .65rem; }
+
 .upload-area {
   padding: 1.4rem;
   background: var(--blue-light);
@@ -270,6 +272,7 @@ footer { padding: 1.5rem; text-align: center; color: var(--muted); border-top: 1
   :root { font-size: 17px; }
   .header-inner, .batch-result-heading { align-items: flex-start; flex-direction: column; }
   .field-grid, .mode-switcher { grid-template-columns: 1fr; }
+  .capacity-input { grid-template-columns: 1fr; }
   .check-card dl { grid-template-columns: 1fr; }
   .check-card dd { margin-bottom: .45rem; }
 }

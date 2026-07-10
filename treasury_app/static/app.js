@@ -77,7 +77,7 @@ function formatBytes(bytes) {
 function applicationFromForm(form) {
   const data = new FormData(form);
   return {
-    application_id: data.get("application_id") || null,
+    application_id: null,
     beverage_type: data.get("beverage_type"),
     brand_name: data.get("brand_name"),
     class_type: data.get("class_type"),
@@ -85,7 +85,7 @@ function applicationFromForm(form) {
     proof: data.get("beverage_type") === "distilled_spirits" && data.get("proof")
       ? Number(data.get("proof"))
       : null,
-    net_contents: data.get("net_contents"),
+    net_contents: `${data.get("net_contents_value")} ${data.get("net_contents_unit")}`,
     producer_name_address: data.get("producer_name_address"),
     country_of_origin: data.get("country_of_origin") || null,
   };

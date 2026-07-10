@@ -219,15 +219,44 @@ def parse_volume_ml(value: str | None) -> float | None:
     if not value:
         return None
     match = re.search(
-        r"(\d+(?:\.\d+)?)\s*(ml|millilit(?:er|re)s?|l|lit(?:er|re)s?)\b",
+        r"(\d+(?:\.\d+)?)\s*(fl(?:uid)?\.?\s*oz(?:\.|s)?|fluid ounces?|"
+        r"pints?|pts?\.?|quarts?|qts?\.?|gallons?|gals?\.?|ml|"
+        r"millilit(?:er|re)s?|l|lit(?:er|re)s?)\b",
         value,
         re.IGNORECASE,
     )
     if not match:
         return None
     amount = float(match.group(1))
-    unit = match.group(2).lower()
-    return amount * 1000 if unit in {"l", "liter", "litre", "liters", "litres"} else amount
+    unit = re.sub(r"[.\s]", "", match.group(2).lower())
+    factors_ml = {
+        "ml": 1,
+        "milliliter": 1,
+        "milliliters": 1,
+        "millilitre": 1,
+        "millilitres": 1,
+        "l": 1000,
+        "liter": 1000,
+        "liters": 1000,
+        "litre": 1000,
+        "litres": 1000,
+        "floz": 29.5735295625,
+        "fluidounce": 29.5735295625,
+        "fluidounces": 29.5735295625,
+        "pint": 473.176473,
+        "pints": 473.176473,
+        "pt": 473.176473,
+        "pts": 473.176473,
+        "quart": 946.352946,
+        "quarts": 946.352946,
+        "qt": 946.352946,
+        "qts": 946.352946,
+        "gallon": 3785.411784,
+        "gallons": 3785.411784,
+        "gal": 3785.411784,
+        "gals": 3785.411784,
+    }
+    return amount * factors_ml[unit]
 
 
 def compare_text(
@@ -444,7 +473,7 @@ def build_review(
     if expected_volume is None:
         volume_check = ReviewCheck(
             key="net_contents",
-            label="Net contents",
+            label="Total bottle capacity",
             status="review",
             expected=application.net_contents,
             observed=extraction.net_contents.value,
@@ -455,7 +484,7 @@ def build_review(
     else:
         volume_check = numeric_check(
             key="net_contents",
-            label="Net contents",
+            label="Total bottle capacity",
             expected=expected_volume,
             observed=observed_volume,
             observed_text=extraction.net_contents.value,
@@ -470,7 +499,7 @@ def build_review(
         [
             compare_text(
                 key="producer",
-                label="Producer name and address",
+                label="Name and address of applicant",
                 expected=application.producer_name_address,
                 field=extraction.producer_name_address,
             ),
