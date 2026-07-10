@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Evidence-based TTB alcohol label review assistant">
+    <meta name="description" content="AI-assisted TTB alcohol label screening">
     <title>TTB Label Review Assistant</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
@@ -27,207 +27,89 @@
       </div>
     {% endif %}
 
-    <main id="main-content" class="page-shell">
+    <main id="main-content" class="page-shell" data-max-upload-mb="{{ max_upload_mb }}">
       <section class="intro" aria-labelledby="page-heading">
-        <p class="eyebrow">Alcohol label verification</p>
-        <h1 id="page-heading">Review label applications with clear evidence</h1>
+        <p class="eyebrow">Alcohol label screening</p>
+        <h1 id="page-heading">Screen label images for possible review items</h1>
         <p>
-          Compare application details with label artwork. The assistant flags
-          differences and uncertainty for a compliance specialist to review.
+          Choose one or more label images. The assistant identifies visible
+          information and points out items that may need a closer human review.
         </p>
         <div class="advisory" role="note">
-          <strong>AI-assisted guidance only.</strong> Automated findings are
-          suggestions based on image reading. They may be incorrect
-          or incomplete; confirm the label artwork and applicable requirements
-          before taking action.
+          <strong>AI-assisted guidance only.</strong> This screen does not compare
+          labels to an application record and does not approve, reject, or submit
+          anything to TTB. Confirm the label artwork and applicable requirements
+          before acting.
         </div>
       </section>
 
-      <div class="mode-switcher" role="tablist" aria-label="Review mode">
-        <button id="single-tab" class="mode-button active" type="button"
-                role="tab" aria-selected="true" aria-controls="single-panel">
-          Review one label
-        </button>
-        <button id="batch-tab" class="mode-button" type="button"
-                role="tab" aria-selected="false" aria-controls="batch-panel">
-          Review a batch
-        </button>
-      </div>
-
-      <section id="single-panel" role="tabpanel" aria-labelledby="single-tab">
-        <form id="review-form" class="review-form">
+      <section id="screen-panel" aria-labelledby="screen-heading">
+        <form id="screen-form" class="review-form">
           <div class="form-card">
             <div class="step-heading">
               <span class="step-number" aria-hidden="true">1</span>
               <div>
-                <h2>Application details</h2>
-                <p>Enter the information submitted by the applicant.</p>
-              </div>
-            </div>
-
-            <div class="field-grid">
-              <div class="field full-width">
-                <label for="beverage-type">Type of product</label>
-                <select id="beverage-type" name="beverage_type">
-                  <option value="distilled_spirits" selected>Distilled spirits</option>
-                  <option value="wine">Wine</option>
-                  <option value="malt_beverage">Malt beverage / beer</option>
-                </select>
-                <p id="beverage-profile-hint" class="hint">Proof is reviewed only for distilled spirits.</p>
-              </div>
-              <div class="field">
-                <label for="brand-name">Brand name</label>
-                <input id="brand-name" name="brand_name" required
-                       value="Old Tom Distillery">
-              </div>
-              <div class="field">
-                <label for="class-type">Class/type designation</label>
-                <input id="class-type" name="class_type" required
-                       value="Kentucky Straight Bourbon Whiskey">
-              </div>
-              <div class="field" id="abv-field">
-                <label for="abv">Alcohol by volume (%) <span id="abv-optional" class="optional"></span></label>
-                <input id="abv" name="abv" type="number" min="0.1" max="100"
-                       step="0.1" inputmode="decimal" required value="45">
-              </div>
-              <div class="field" id="proof-field">
-                <label for="proof">Proof <span class="optional">(optional)</span></label>
-                <input id="proof" name="proof" type="number" min="0.1" max="200"
-                       step="0.1" inputmode="decimal" value="90">
-              </div>
-              <div class="field">
-                <label for="net-contents-value">Total bottle capacity</label>
-                <div class="capacity-input">
-                  <input id="net-contents-value" name="net_contents_value" type="number"
-                         min="0.1" step="0.1" inputmode="decimal" required value="750">
-                  <select id="net-contents-unit" name="net_contents_unit" aria-label="Total bottle capacity unit">
-                    <option value="mL" selected>mL</option>
-                    <option value="cL">cL</option>
-                    <option value="L">L</option>
-                    <option value="fl oz">fl oz</option>
-                    <option value="pint">pint</option>
-                    <option value="quart">quart</option>
-                    <option value="gallon">gallon</option>
-                  </select>
-                </div>
-              </div>
-              <div class="field">
-                <label for="country-origin">Country of origin <span class="optional">(imports only)</span></label>
-                <input id="country-origin" name="country_of_origin">
-              </div>
-              <div class="field full-width">
-                <label for="producer">Name and address of applicant</label>
-                <input id="producer" name="producer_name_address" required
-                       autocomplete="organization"
-                       value="Old Tom Distillery, Louisville KY">
-                <p class="hint">As shown on the plant registry, basic permit, or brewer's notice.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-card">
-            <div class="step-heading">
-              <span class="step-number" aria-hidden="true">2</span>
-              <div>
-                <h2>Label artwork</h2>
-                <p>Add clear front, back, or side views. Up to four images.</p>
+                <h2 id="screen-heading">Label images</h2>
+                <p>Choose one to 100 images. Each file is screened as one label.</p>
               </div>
             </div>
             <div class="upload-area">
               <label for="label-images">Choose label images</label>
               <input id="label-images" name="images" type="file"
                      accept="image/jpeg,image/png,image/webp" multiple required>
-              <p class="hint">JPEG, PNG, or WebP. Total upload limit: 12 MB.</p>
+              <p class="hint">JPEG, PNG, or WebP. Each image can be up to {{ max_upload_mb }} MB.</p>
               <ul id="selected-files" class="file-list" aria-live="polite"></ul>
             </div>
           </div>
 
-          <div id="form-error" class="alert error hidden" role="alert"
-               tabindex="-1"></div>
-          <button id="review-button" class="primary-button" type="submit">
-            Review this label
+          <div id="screen-error" class="alert error hidden" role="alert" tabindex="-1"></div>
+          <button id="screen-button" class="primary-button" type="submit">
+            Start label screen
           </button>
         </form>
-        <section id="single-result" class="result-region hidden"
-                 aria-live="polite" aria-labelledby="result-heading"></section>
       </section>
 
-      <section id="batch-panel" class="hidden" role="tabpanel"
-               aria-labelledby="batch-tab">
-        <div class="form-card">
-          <div class="step-heading">
-            <span class="step-number" aria-hidden="true">1</span>
-            <div>
-              <h2>Batch files</h2>
-              <p>
-                Upload one CSV manifest and all referenced label images.
-                Results appear as each application finishes.
-              </p>
-            </div>
-          </div>
-          <p>
-            <a id="template-link" class="text-link" href="#">Download CSV template</a>
-          </p>
-          <form id="batch-form">
-            <div class="field">
-              <label for="batch-csv">CSV manifest</label>
-              <input id="batch-csv" type="file" accept=".csv,text/csv" required>
-            </div>
-            <div class="field">
-              <label for="batch-images">Label images</label>
-              <input id="batch-images" type="file"
-                     accept="image/jpeg,image/png,image/webp" multiple required>
-            </div>
-            <div id="batch-error" class="alert error hidden" role="alert"
-                 tabindex="-1"></div>
-            <button id="batch-button" class="primary-button" type="submit">
-              Start batch review
-            </button>
-          </form>
+      <section id="screen-progress" class="batch-progress hidden" aria-live="polite">
+        <div class="progress-copy">
+          <h2>Screening progress</h2>
+          <p id="progress-text">Preparing label images…</p>
         </div>
+        <progress id="progress-bar" value="0" max="1">0%</progress>
+      </section>
 
-        <section id="batch-progress" class="batch-progress hidden" aria-live="polite">
-          <div class="progress-copy">
-            <h2>Batch progress</h2>
-            <p id="progress-text">Preparing applications…</p>
-          </div>
-          <progress id="progress-bar" value="0" max="1">0%</progress>
-        </section>
-
-        <section id="batch-results" class="result-region hidden">
-          <div class="batch-result-heading">
-            <h2>Batch results</h2>
-            <button id="print-results" class="secondary-button" type="button">
-              Save or print results
-            </button>
-          </div>
-          <p class="batch-advisory">
-            Automated findings are AI-assisted leads, not determinations. Review the
-            expected and observed values against the label before acting.
-          </p>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Application</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Review findings</th>
-                  <th scope="col">Guidance</th>
-                  <th scope="col">Time</th>
-                </tr>
-              </thead>
-              <tbody id="batch-result-body"></tbody>
-            </table>
-          </div>
-          <section id="batch-completion" class="batch-completion hidden" aria-live="polite">
-            <h3>Batch summary</h3>
-            <p id="batch-completion-copy"></p>
-            <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
-               target="_blank" rel="noopener noreferrer">
-              Continue to applications (external)
-            </a>
-            <p class="override-note">This prototype does not submit application data to TTB.</p>
-          </section>
+      <section id="screen-results" class="result-region hidden" aria-labelledby="results-heading">
+        <div class="batch-result-heading">
+          <h2 id="results-heading">Screening results</h2>
+          <button id="print-results" class="secondary-button" type="button">
+            Save or print results
+          </button>
+        </div>
+        <p class="batch-advisory">
+          Results are AI-assisted leads, not determinations. “Not confidently located”
+          does not establish that a statement is absent or noncompliant.
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Label</th>
+                <th scope="col">Status</th>
+                <th scope="col">Possible review items</th>
+                <th scope="col">Guidance</th>
+                <th scope="col">Time</th>
+              </tr>
+            </thead>
+            <tbody id="screen-result-body"></tbody>
+          </table>
+        </div>
+        <section id="screen-completion" class="batch-completion hidden" aria-live="polite">
+          <h3>Screening summary</h3>
+          <p id="screen-completion-copy"></p>
+          <a class="secondary-button" href="https://www.ttbonline.gov/colasonline/"
+             target="_blank" rel="noopener noreferrer">
+            Continue to applications (external)
+          </a>
+          <p class="override-note">This prototype does not submit application data to TTB.</p>
         </section>
       </section>
     </main>

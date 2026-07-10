@@ -2,6 +2,7 @@ from treasury_app.models import ApplicationData, ExtractedField, LabelExtraction
 from treasury_app.services.providers import MockProvider
 from treasury_app.services.review import (
     GOVERNMENT_WARNING,
+    build_label_screen,
     build_review,
     normalize_business_name,
     normalize_country,
@@ -132,6 +133,41 @@ def test_abv_difference_requires_attention():
     assert abv_check.status == "mismatch"
     assert abv_check.guidance_title == "TTB: Alcohol content statement requirements"
     assert abv_check.guidance_url.endswith("/ds-alcohol-content")
+
+
+def test_label_only_screen_uses_possible_review_items_not_mismatches():
+    extraction = mock_extraction()
+    extraction.beverage_type = "wine"
+    extraction.class_type = ExtractedField(
+        value=None,
+        evidence=None,
+        confidence=0.9,
+    )
+    result = build_label_screen(
+        "example-wine.jpg",
+        extraction,
+        provider_name="Mock provider",
+    )
+
+    class_type = next(check for check in result.checks if check.key == "class_type")
+    assert result.label_id == "example-wine.jpg"
+    assert result.overall_status == "attention"
+    assert class_type.status == "review"
+    assert all(check.status != "mismatch" for check in result.checks)
+
+
+def test_label_only_wine_and_malt_can_screen_without_an_abv_statement():
+    for beverage_type in ("wine", "malt_beverage"):
+        extraction = mock_extraction()
+        extraction.beverage_type = beverage_type
+        extraction.alcohol_content = ExtractedField()
+        result = build_label_screen(
+            f"{beverage_type}.jpg",
+            extraction,
+            provider_name="Mock provider",
+        )
+        abv = next(check for check in result.checks if check.key == "abv")
+        assert abv.status == "match"
 
 
 def test_proof_uses_a_dedicated_extraction_not_the_abv_text():

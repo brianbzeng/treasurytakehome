@@ -58,6 +58,7 @@ class WarningObservation(BaseModel):
 class LabelExtraction(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    beverage_type: BeverageType | None = None
     brand_name: ExtractedField = Field(default_factory=ExtractedField)
     class_type: ExtractedField = Field(default_factory=ExtractedField)
     alcohol_content: ExtractedField = Field(default_factory=ExtractedField)
@@ -92,6 +93,19 @@ class ReviewCheck(BaseModel):
 
 class ReviewResult(BaseModel):
     application_id: str | None
+    overall_status: OverallStatus
+    summary: str
+    checks: list[ReviewCheck]
+    notes: list[str] = Field(default_factory=list)
+    processing_ms: int | None = None
+    provider: str
+
+
+class LabelScreenResult(BaseModel):
+    """AI-assisted observations for a label without application data."""
+
+    label_id: str
+    beverage_type: BeverageType | None = None
     overall_status: OverallStatus
     summary: str
     checks: list[ReviewCheck]

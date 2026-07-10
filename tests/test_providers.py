@@ -113,3 +113,21 @@ def test_mimo_still_fails_safely_after_two_unrecoverable_responses():
         provider.extract([], application)
 
     assert completions.calls == 2
+
+
+def test_mimo_supports_label_only_screening():
+    provider = MiMoProvider(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+        timeout_seconds=1,
+    )
+    completions = FakeCompletions(
+        ['{"beverage_type":"wine","brand_name":{"value":"Example Wine","confidence":0.9}}']
+    )
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+    extraction = provider.screen([])
+
+    assert extraction.beverage_type == "wine"
+    assert extraction.brand_name.value == "Example Wine"
