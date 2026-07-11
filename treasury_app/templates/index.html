@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="AI-assisted TTB alcohol label screening">
     <title>TTB Label Review Assistant</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg', v=static_asset_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v=static_asset_version) }}">
+    <script defer src="{{ url_for('static', filename='app.js', v=static_asset_version) }}"></script>
   </head>
   <body data-mode="{{ mode }}">
     <a class="skip-link" href="#main-content">Skip to main content</a>

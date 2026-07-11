@@ -253,6 +253,11 @@ def parse_volume_ml(value: str | None) -> float | None:
         return None
     amount = float(match.group(1).replace(",", "."))
     unit = re.sub(r"[.\s]", "", match.group(2).lower())
+    unit = {
+        "flozs": "floz",
+        "fluidoz": "floz",
+        "fluidozs": "floz",
+    }.get(unit, unit)
     factors_ml = {
         "ml": 1,
         "milliliter": 1,
@@ -562,7 +567,7 @@ def build_review(
     )
     heading_detected = bool(
         re.search(r"\bgovernment\s+warning\b", warning_source, re.IGNORECASE)
-    )
+    ) and warning.confidence >= MIN_CONFIDENCE
     if heading_detected:
         warning_status = "match"
         warning_explanation = (
@@ -597,16 +602,13 @@ def build_review(
             attach_guidance(check, beverage_type)
 
     statuses = {check.status for check in checks}
-    comparison_statuses = {
-        check.status for check in checks if check.key != "government_warning"
-    }
     if "mismatch" in statuses:
         overall_status = "attention"
         summary = (
             "The automated screen found one or more differences. "
             "A reviewer must verify the label and applicable requirements before acting."
         )
-    elif "review" in comparison_statuses:
+    elif "review" in statuses:
         overall_status = "unable"
         summary = (
             "The automated screen could not verify one or more fields. "
@@ -743,7 +745,7 @@ def build_label_screen(
     )
     warning_detected = bool(
         re.search(r"\bgovernment\s+warning\b", warning_source, re.IGNORECASE)
-    )
+    ) and warning.confidence >= MIN_CONFIDENCE
     checks.append(
         ReviewCheck(
             key="government_warning",

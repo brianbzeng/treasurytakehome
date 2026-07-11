@@ -7,9 +7,11 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Protocol
 
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
+from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import ValidationError
 
 from treasury_app.models import (
@@ -36,6 +38,15 @@ EXTRACTED_FIELD_NAMES = (
     "producer_name_address",
     "country_of_origin",
 )
+
+# MiMo performs its own vision preprocessing, so sending camera-resolution
+# originals only adds upload and decode time. Controlled checks against the
+# evidence corpus retained the requested fields at a 900 px longest edge while
+# cutting a representative request from 643 KB to about 195 KB.
+MAX_PROVIDER_IMAGE_EDGE = 900
+MAX_PROVIDER_IMAGE_PIXELS = 16_000_000
+PROVIDER_JPEG_QUALITY = 90
+MAX_COMPLETION_TOKENS = 700
 
 
 def _beverage_type(value: object) -> BeverageType | None:
@@ -92,11 +103,17 @@ def _field_payload(value: object) -> dict:
         value = {"value": value}
     if not isinstance(value, dict):
         value = {}
+    field_value = _optional_text(value.get("value", value.get("v")))
+    evidence = (
+        _optional_text(value.get("evidence", value.get("e"))) or field_value
+    )
     return {
-        "value": _optional_text(value.get("value")),
-        "evidence": _optional_text(value.get("evidence")),
-        "expected_value_found": _optional_bool(value.get("expected_value_found")),
-        "confidence": _confidence(value.get("confidence")),
+        "value": field_value,
+        "evidence": evidence,
+        "expected_value_found": _optional_bool(
+            value.get("expected_value_found", value.get("f"))
+        ),
+        "confidence": _confidence(value.get("confidence", value.get("c"))),
     }
 
 
@@ -105,11 +122,11 @@ def _warning_payload(value: object) -> dict:
         value = {}
     return {
         "verbatim_text": _optional_text(value.get("verbatim_text")),
-        "heading_text": _optional_text(value.get("heading_text")),
+        "heading_text": _optional_text(value.get("heading_text", value.get("h"))),
         "heading_bold": _optional_bool(value.get("heading_bold")),
         "legible": _optional_bool(value.get("legible")),
-        "evidence": _optional_text(value.get("evidence")),
-        "confidence": _confidence(value.get("confidence")),
+        "evidence": _optional_text(value.get("evidence", value.get("e"))),
+        "confidence": _confidence(value.get("confidence", value.get("c"))),
     }
 
 
@@ -142,6 +159,27 @@ def parse_extraction_response(message: str) -> LabelExtraction:
             if isinstance(nested, dict):
                 payload = nested
                 break
+
+    compact_fields = {
+        "b": "brand_name",
+        "y": "class_type",
+        "a": "alcohol_content",
+        "p": "proof",
+        "n": "net_contents",
+        "d": "producer_name_address",
+        "o": "country_of_origin",
+    }
+    if not any(name in payload for name in EXTRACTED_FIELD_NAMES) and any(
+        key in payload for key in (*compact_fields, "t", "w")
+    ):
+        payload = {
+            "beverage_type": payload.get("t"),
+            **{
+                field_name: payload.get(short_name)
+                for short_name, field_name in compact_fields.items()
+            },
+            "government_warning": payload.get("w"),
+        }
 
     notes = payload.get("notes")
     if isinstance(notes, str):
@@ -184,6 +222,71 @@ class ImageInput:
     content: bytes
     mime_type: str
     filename: str
+
+
+def optimize_image_for_provider(image: ImageInput) -> ImageInput:
+    """Shrink a label for transport while preserving the original on failure.
+
+    Images above the provider edge limit are always resized. A smaller image is
+    otherwise converted only when the JPEG is at least ten percent smaller than
+    the upload, leaving already-efficient inputs byte-for-byte intact.
+    """
+    try:
+        with Image.open(BytesIO(image.content)) as source:
+            if source.width * source.height > MAX_PROVIDER_IMAGE_PIXELS:
+                raise ProviderError(
+                    "The label image dimensions are too large. Please resize the "
+                    "image to 16 megapixels or less and retry."
+                )
+            prepared = ImageOps.exif_transpose(source)
+            oriented_size = prepared.size
+            prepared.thumbnail(
+                (MAX_PROVIDER_IMAGE_EDGE, MAX_PROVIDER_IMAGE_EDGE),
+                Image.Resampling.LANCZOS,
+            )
+            was_resized = prepared.size != oriented_size
+            if "A" in prepared.getbands():
+                rgba = prepared.convert("RGBA")
+                rgb = Image.new("RGB", rgba.size, "white")
+                rgb.paste(rgba, mask=rgba.getchannel("A"))
+                prepared = rgb
+            elif prepared.mode != "RGB":
+                prepared = prepared.convert("RGB")
+
+            output = BytesIO()
+            prepared.save(
+                output,
+                format="JPEG",
+                quality=PROVIDER_JPEG_QUALITY,
+                optimize=True,
+                progressive=True,
+            )
+            optimized = output.getvalue()
+    except Image.DecompressionBombError as exc:
+        raise ProviderError(
+            "The label image dimensions are too large. Please resize the image "
+            "to 16 megapixels or less and retry."
+        ) from exc
+    except (UnidentifiedImageError, OSError, ValueError):
+        logger.info(
+            "Could not optimize %s; sending the validated original image.",
+            image.filename,
+        )
+        return image
+
+    if not was_resized and len(optimized) >= len(image.content) * 0.9:
+        return image
+    logger.info(
+        "Optimized %s from %s to %s bytes for image review.",
+        image.filename,
+        len(image.content),
+        len(optimized),
+    )
+    return ImageInput(
+        content=optimized,
+        mime_type="image/jpeg",
+        filename=image.filename,
+    )
 
 
 SYSTEM_PROMPT = """
@@ -247,33 +350,22 @@ itself as a country-of-origin statement.
 For alcohol content, proof, and net contents, transcribe only what is visibly
 present. Do not provide a compliance verdict.
 
-Use exactly this object shape:
-{
-  "beverage_type": "distilled_spirits"|"wine"|"malt_beverage"|null,
-  "brand_name": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
-  "class_type": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
-  "alcohol_content": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
-  "proof": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
-  "net_contents": {"value": string|null, "evidence": string|null, "expected_value_found": null, "confidence": 0..1},
-  "producer_name_address": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
-  "country_of_origin": {"value": string|null, "evidence": string|null, "expected_value_found": boolean|null, "confidence": 0..1},
-  "government_warning": {
-    "verbatim_text": string|null,
-    "heading_text": string|null,
-    "heading_bold": boolean|null,
-    "legible": boolean|null,
-    "evidence": string|null,
-    "confidence": 0..1
-  },
-  "raw_text": string|null,
-  "notes": [string]
-}
+Use only this compact JSON schema:
+{"t": beverage_type, "b": field, "y": field, "a": numeric, "p": numeric,
+ "n": numeric, "d": field, "o": field, "w": warning}
+The keys mean t=beverage type, b=brand, y=class/type, a=ABV, p=proof, n=net
+contents, d=producer/address, o=origin, and w=warning. A text field is
+{"v": string|null, "f": boolean|null, "c": 0..1}; a numeric field is
+{"v": string|null, "c": 0..1}; warning is {"h": string|null, "c": 0..1}.
+An optional short "e" evidence string may be included only when it adds
+information not already present in "v". Omit null-only optional keys and all
+unrequested fields.
 
-For government_warning, perform a lightweight presence check only: report the
-short “GOVERNMENT WARNING:” heading in heading_text and evidence when visible.
-Do not transcribe the body of the warning. Always return null for heading_bold;
-the model must not judge capitalization, boldness, type size, legibility, or
-placement. Those are human-review requirements, not automated screen results.
+For w, perform a lightweight presence check only: report the short
+“GOVERNMENT WARNING:” heading in h when visible. Do not transcribe the body or
+return typography fields; the model must not judge capitalization, boldness,
+type size, legibility, or placement. Those are human-review requirements, not
+automated screen results.
 
 Keep alcohol_content and proof separate: alcohol_content must contain only the
 percent alcohol-by-volume statement (for example, “40% Alc./Vol.”), while
@@ -287,6 +379,39 @@ comma is equivalent to a decimal point (for example, “12,5% vol.” means 12.5
 ABV). For metric net contents, a trailing standalone `e` or `℮` is the
 estimated-quantity mark, not part of the volume (for example, “1,5 l e” means
 1.5 L). Do not treat either notation as a discrepancy.
+
+Keep every value and evidence string under 120 characters. Do not repeat the
+instructions, add prose, or return markdown.
+""".strip()
+
+
+# Quick scans do not need the expected-value matching rules above. Keeping a
+# separate focused prompt saves several thousand input tokens for the workflow
+# most likely to process many labels.
+SCREEN_SYSTEM_PROMPT = """
+Extract visible evidence from one United States alcohol-beverage label. Return
+JSON only and never make an approval or compliance decision.
+
+Infer beverage_type as exactly distilled_spirits, wine, malt_beverage, or null.
+Transcribe clearly visible brand, class/type, alcohol by volume, proof (only for
+distilled spirits), net contents, producer/importer name and address, and an
+explicit country-of-origin statement. Use null rather than guessing. Keep ABV
+and proof separate. A decimal comma is a decimal point, and a standalone e or
+℮ after a metric volume is an estimated-quantity mark.
+
+Use only this compact JSON schema:
+{"t": beverage_type, "b": item, "y": item, "a": item, "p": item,
+ "n": item, "d": item, "o": item, "w": warning}
+The keys mean t=beverage type, b=brand, y=class/type, a=ABV, p=proof, n=net
+contents, d=producer/address, o=origin, and w=warning. Each item is
+{"v": string|null, "c": 0..1}; warning is {"h": string|null, "c": 0..1}.
+An optional short "e" evidence string may be included only when it adds
+information not already present in "v".
+
+Only locate the short GOVERNMENT WARNING heading; do not transcribe the body or
+judge wording, capitalization, boldness, size, legibility, or placement. Keep
+every string under 120 characters. Do not add prose, markdown, raw OCR text,
+notes, expected-value flags, null-only optional keys, or unrequested fields.
 """.strip()
 
 
@@ -311,32 +436,25 @@ class MiMoProvider:
             api_key=api_key,
             base_url=base_url,
             timeout=timeout_seconds,
-            max_retries=1,
+            # The UI already provides explicit per-label retry controls. An
+            # invisible SDK retry can otherwise double latency and API cost.
+            max_retries=0,
         )
 
-    def _request_extraction(self, content: list[dict], *, repair: bool) -> str:
-        request_content = list(content)
-        if repair:
-            request_content.append(
-                {
-                    "type": "text",
-                    "text": (
-                        "The prior response could not be parsed. Return the required "
-                        "JSON object only. Keep every value and evidence string under "
-                        "120 characters, set raw_text to null and notes to [], use null "
-                        "for uncertain values, and use confidence numbers from 0 to 1. "
-                        "Do not add prose, markdown, or unrequested fields."
-                    ),
-                }
-            )
+    def _request_extraction(
+        self,
+        content: list[dict],
+        *,
+        system_prompt: str,
+    ) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": request_content},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content},
             ],
             response_format={"type": "json_object"},
-            max_completion_tokens=2400,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
             temperature=0,
             extra_body={"thinking": {"type": "disabled"}},
         )
@@ -351,35 +469,35 @@ class MiMoProvider:
     def _image_content(self, images: list[ImageInput]) -> list[dict]:
         content: list[dict] = []
         for image in images:
-            encoded = base64.b64encode(image.content).decode("ascii")
+            optimized = optimize_image_for_provider(image)
+            encoded = base64.b64encode(optimized.content).decode("ascii")
             content.append(
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": f"data:{image.mime_type};base64,{encoded}"
+                        "url": f"data:{optimized.mime_type};base64,{encoded}"
                     },
                 }
             )
         return content
 
-    def _extract_content(self, content: list[dict]) -> LabelExtraction:
+    def _extract_content(
+        self,
+        content: list[dict],
+        *,
+        system_prompt: str = SYSTEM_PROMPT,
+    ) -> LabelExtraction:
         try:
-            invalid_response: Exception | None = None
-            for attempt, repair in enumerate((False, True), start=1):
-                try:
-                    message = self._request_extraction(content, repair=repair)
-                    return parse_extraction_response(message)
-                except (json.JSONDecodeError, ValidationError, ValueError, IndexError) as exc:
-                    invalid_response = exc
-                    logger.warning(
-                        "MiMo returned an invalid extraction on attempt %s (%s).",
-                        attempt,
-                        type(exc).__name__,
-                    )
-            assert invalid_response is not None
+            message = self._request_extraction(content, system_prompt=system_prompt)
+            return parse_extraction_response(message)
+        except (json.JSONDecodeError, ValidationError, ValueError, IndexError) as exc:
+            logger.warning(
+                "MiMo returned an invalid extraction (%s).",
+                type(exc).__name__,
+            )
             raise ProviderError(
-                "The image service returned an invalid result after a retry. Please retry."
-            ) from invalid_response
+                "The image service returned an invalid result. Please retry."
+            ) from exc
         except APITimeoutError as exc:
             raise ProviderError(
                 "The image review timed out. Please retry with a smaller image."
@@ -439,7 +557,7 @@ class MiMoProvider:
                 ),
             }
         )
-        return self._extract_content(content)
+        return self._extract_content(content, system_prompt=SCREEN_SYSTEM_PROMPT)
 
 
 class MockProvider:

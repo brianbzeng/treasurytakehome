@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import time
 from functools import lru_cache
+from hashlib import sha256
+from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 from pydantic import ValidationError
@@ -24,6 +26,18 @@ bp = Blueprint("main", __name__)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGES = 4
 MAX_SCREEN_IMAGES = 1
+
+
+def _static_asset_version() -> str:
+    """Fingerprint browser assets so a deploy cannot reuse stale JavaScript/CSS."""
+    static_directory = Path(__file__).resolve().parent / "static"
+    digest = sha256()
+    for filename in ("app.js", "styles.css", "favicon.svg"):
+        digest.update((static_directory / filename).read_bytes())
+    return digest.hexdigest()[:12]
+
+
+STATIC_ASSET_VERSION = _static_asset_version()
 
 
 def has_valid_image_signature(content: bytes, mime_type: str) -> bool:
@@ -75,6 +89,7 @@ def _render_review_page(mode: str = "home"):
         mode=mode,
         mock_mode=current_app.config["AI_PROVIDER"] == "mock",
         max_upload_mb=current_app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024),
+        static_asset_version=STATIC_ASSET_VERSION,
     )
 
 

@@ -70,6 +70,10 @@ def test_numeric_parsers():
     assert parse_volume_ml("750 milliliters") == 750
     assert abs(parse_volume_ml("16 fl oz") - parse_volume_ml("1 pint")) < 0.01
     assert abs(parse_volume_ml("1 quart") - parse_volume_ml("32 fluid ounces")) < 0.01
+    fluid_ounce_ml = parse_volume_ml("1 fl oz")
+    assert parse_volume_ml("1 fl ozs") == fluid_ounce_ml
+    assert parse_volume_ml("1 fluid oz") == fluid_ounce_ml
+    assert parse_volume_ml("1 fluid ozs") == fluid_ounce_ml
     assert parse_volume_ml("75 cL ℮") == 750
     assert parse_volume_ml("1,5 l e") == 1500
 
@@ -295,7 +299,7 @@ def test_warning_boldness_does_not_affect_the_automated_screen():
     assert result.overall_status == "match"
 
 
-def test_missing_warning_heading_does_not_block_a_matching_application():
+def test_missing_warning_heading_requires_human_review():
     extraction = mock_extraction()
     extraction.government_warning.heading_text = None
     extraction.government_warning.verbatim_text = None
@@ -310,7 +314,57 @@ def test_missing_warning_heading_does_not_block_a_matching_application():
     )
     assert warning.status == "review"
     assert warning.observed == "Government warning heading not confidently located."
-    assert result.overall_status == "match"
+    assert result.overall_status == "unable"
+
+
+def test_low_confidence_warning_heading_requires_human_review():
+    extraction = mock_extraction()
+    extraction.government_warning.confidence = 0
+    result = build_review(
+        sample_application(),
+        extraction,
+        provider_name="Mock provider",
+    )
+    warning = next(
+        check for check in result.checks if check.key == "government_warning"
+    )
+    assert warning.status == "review"
+    assert warning.observed == "Government warning heading not confidently located."
+    assert result.overall_status == "unable"
+
+
+def test_label_only_missing_warning_heading_is_a_possible_review_item():
+    extraction = mock_extraction()
+    extraction.government_warning.heading_text = None
+    extraction.government_warning.verbatim_text = None
+    extraction.government_warning.evidence = None
+    result = build_label_screen(
+        "missing-warning.jpg",
+        extraction,
+        provider_name="Mock provider",
+    )
+    warning = next(
+        check for check in result.checks if check.key == "government_warning"
+    )
+    assert warning.status == "review"
+    assert warning.observed == "Not confidently located"
+    assert result.overall_status == "attention"
+
+
+def test_label_only_low_confidence_warning_heading_is_a_possible_review_item():
+    extraction = mock_extraction()
+    extraction.government_warning.confidence = 0.4
+    result = build_label_screen(
+        "uncertain-warning.jpg",
+        extraction,
+        provider_name="Mock provider",
+    )
+    warning = next(
+        check for check in result.checks if check.key == "government_warning"
+    )
+    assert warning.status == "review"
+    assert warning.observed == "Not confidently located"
+    assert result.overall_status == "attention"
 
 
 def test_low_confidence_routes_to_human_review():

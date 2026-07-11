@@ -34,6 +34,18 @@ def test_index_links_to_each_dedicated_review_workflow(client):
     assert b'individual-beverage-type' not in response.data
 
 
+def test_browser_assets_use_one_content_fingerprint(client):
+    response = client.get("/")
+    html = response.get_data(as_text=True)
+    versions = {
+        url.split("?v=", 1)[1].split('"', 1)[0]
+        for url in html.split('"')
+        if url.startswith("/static/") and "?v=" in url
+    }
+    assert len(versions) == 1
+    assert html.count("?v=") == 3
+
+
 def test_individual_review_renders_only_the_individual_form(client):
     response = client.get("/review")
     assert response.status_code == 200
