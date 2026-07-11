@@ -364,6 +364,7 @@ Every repository change was delivered through a pull request:
 | [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Documented the completed project handoff, setup, architecture, and deployment. |
 | [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, and attention-to-detail tradeoffs. |
 | [#22](https://github.com/brianbzeng/treasurytakehome/pull/22) | Refined the tools and assumptions sections for a concise assessment handoff. |
+| [#23](https://github.com/brianbzeng/treasurytakehome/pull/23) | Improved warning reliability and latency and published reproducible evidence batches. |
 
 ## Planned follow-up
 
