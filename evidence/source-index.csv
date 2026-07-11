@@ -1,0 +1,33 @@
+commodity,batch,image_filename,application_id,ttb_id,source_url,fixture_change
+beer,matched,1.png,BEER-MATCH-01,23173001000897,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=23173001000897,none
+beer,matched,2.jpg,BEER-MATCH-02,16199001000074,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=16199001000074,none
+beer,matched,4.jpg,BEER-MATCH-04,20023001000462,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=20023001000462,none
+beer,matched,6.jpg,BEER-MATCH-06,21134001000491,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=21134001000491,none
+beer,matched,9.jpg,BEER-MATCH-09,21183001000678,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=21183001000678,none
+beer,mismatched,3.jpg,BEER-MISMATCH-03,18110001000322,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=18110001000322,submitted ABV intentionally changed
+beer,mismatched,5.jpg,BEER-MISMATCH-05,20295001000618,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=20295001000618,submitted ABV intentionally changed
+beer,mismatched,7.jpg,BEER-MISMATCH-07,21134001000492,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=21134001000492,submitted ABV intentionally changed
+beer,mismatched,8.jpg,BEER-MISMATCH-08,21144001000483,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=21144001000483,submitted ABV intentionally changed
+beer,mismatched,10.jpg,BEER-MISMATCH-10,21183001000683,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=21183001000683,submitted ABV intentionally changed
+wine,matched,1.jpg,WINE-MATCH-01,03211001000018,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=03211001000018,none
+wine,matched,2.jpg,WINE-MATCH-02,03235001000006,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=03235001000006,none
+wine,matched,3.jpg,WINE-MATCH-03,06149001000031,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000031,none
+wine,matched,4.jpg,WINE-MATCH-04,06149001000037,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000037,none
+wine,matched,10.jpg,WINE-MATCH-10,06149001000055,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000055,none
+wine,mismatched,5.jpg,WINE-MISMATCH-05,06149001000050,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000050,submitted ABV intentionally changed
+wine,mismatched,6.jpg,WINE-MISMATCH-06,06149001000051,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000051,submitted ABV intentionally changed
+wine,mismatched,7.jpg,WINE-MISMATCH-07,06149001000052,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000052,submitted ABV intentionally changed
+wine,mismatched,8.jpg,WINE-MISMATCH-08,06149001000053,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000053,submitted ABV intentionally changed
+wine,mismatched,9.jpg,WINE-MISMATCH-09,06149001000054,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=06149001000054,submitted ABV intentionally changed
+distilled_spirits,matched,1.png,1,25238001000822,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25238001000822,none
+distilled_spirits,matched,5.png,5,25359001000031,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25359001000031,none
+distilled_spirits,matched,9.png,9,26063001000972,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=26063001000972,none
+distilled_spirits,matched,12.png,12,26110001000681,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=26110001000681,none
+distilled_spirits,matched,17.jpg,17,25155001000232,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25155001000232,none
+distilled_spirits,mismatched,1.png,1,25238001000822,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25238001000822,submitted proof changed from 80 to 82
+distilled_spirits,mismatched,5.png,5,25359001000031,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25359001000031,submitted ABV changed from 40 to 42
+distilled_spirits,mismatched,9.png,9,26063001000972,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=26063001000972,submitted capacity changed from 1.75 L to 1.5 L
+distilled_spirits,mismatched,12.png,12,26110001000681,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=26110001000681,submitted ABV changed from 17 to 19
+distilled_spirits,mismatched,17.jpg,17,25155001000232,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25155001000232,submitted proof changed from 80 to 78
+distilled_spirits,distorted,5.png,SPIRIT-DISTORTED-05,25359001000031,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25359001000031,submitted capacity changed from 750 mL to 1 L and image intentionally degraded
+distilled_spirits,distorted,17.png,SPIRIT-DISTORTED-17,25155001000232,https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=25155001000232,submitted origin changed from Mexico to United States and image intentionally degraded

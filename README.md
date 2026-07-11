@@ -21,6 +21,8 @@ evidence-based observations.
   images when expected-versus-observed screening is needed.
 - Process image batches progressively with two concurrent requests and
   per-item retries.
+- Publish representative matched, mismatched, and distorted test batches with
+  their application manifests and TTB source IDs under [`evidence/`](evidence/).
 - Extract label fields through the multimodal `mimo-v2.5` API.
 - Identify the beverage profile and visible brand, class/type, alcohol statement,
   proof, net contents, producer/importer, country of origin, and government-warning heading.
@@ -49,36 +51,38 @@ The workflow intentionally separates three jobs that have different certainty:
 
 - I kept image extraction behind a provider interface and used a hosted vision
   model instead of the original plan to bundle OpenCV and PaddleOCR. This kept the
-  Render service small while leaving a clean path for local preprocessing or OCR later
-  if needed.
+  Render service small while leaving a clean path for local OCR later. Lightweight
+  Pillow preprocessing now resizes and recompresses images in memory before
+  inference to reduce transfer and vision-processing time.
 - I separated probabilistic extraction from deterministic comparison. MiMo
   identifies visible evidence; Python validates the response, normalizes it,
-  and decides whether the result is a match, a possible difference, or unable to
+  and decides whether the result is a match, a possible difference, or unable
   to verify.
 - I removed the full Product Class/Type dropdown after reviewing the size of
   the TTB lookup list. Reviewers enter the designation already on the
   application, while the model infers only the broad beverage profile needed
   to choose the correct comparison behavior.
 - I treated numeric fields more strictly than visually ambiguous marketing
-  text. ABV and proof are extracted separately, their arithmetic relationship
-  is checked, and volumes are normalized across metric and U.S. units.
+  text. ABV and proof are extracted and compared separately so one cannot be
+  reused as the other, and volumes are normalized across metric and U.S. units.
 - I added normalization for punctuation, case, legal business suffixes,
   decimal commas, the European estimated-content mark (`e`), and common
   country-name translations without allowing those rules to hide real numeric
   differences.
 - I narrowed automated government-warning review after testing showed that a
   vision model could locate the heading more reliably than it could judge exact
-  boldness, type size, wording, or placement. Those details remain explicit
+  boldness, type size, wording, or placement. A missing or low-confidence
+  heading prevents a green result; those remaining details stay explicit
   human-review items.
 - I designed for failure as part of the normal workflow: malformed model JSON
-  is recovered when safe, uncertain evidence is routed to a reviewer, and failed
-  batch items can be retried individually, and the summary recalculates after a
-  successful retry.
+  becomes an item-level failure, uncertain evidence is routed to a reviewer,
+  failed batch items can be retried individually, and the summary recalculates
+  after a successful retry.
 - I kept the interface direct for reviewers with different levels of technical
   comfort: three dedicated pages, plain-language statuses, focused TTB links,
   visible progress, keyboard focus states, and save/print output.
 - I validated MIME types and file signatures, limited request and batch sizes,
-  avoided persistent uploads, and kept COLAs Online as an external link rather than
+  avoided persistent uploads, and kept COLAs Online as an external link rather
   than implying that the prototype submits or approves an application.
 
 My main concern was false confidence. Stylized labels can make brand, producer,
@@ -102,6 +106,7 @@ The original take-home prompt is preserved in
 | **Xiaomi MiMo 2.5 (`mimo-v2.5`)** | Runtime vision model for OCR and structured field extraction from label images. |
 | **Python 3.11 / Flask / Jinja** | Server-rendered application, API endpoints, validation flow, and review orchestration. |
 | **Vanilla JavaScript / CSS** | Progressive batch processing, retries, result summaries, print views, and accessible interface behavior. |
+| **Pillow** | In-memory image orientation, resizing, and JPEG optimization before hosted inference. |
 | **Pydantic** | Application-input and model-output validation before deterministic rules run. |
 | **pytest / GitHub Actions** | Regression coverage and pull-request verification. |
 | **Gunicorn / Render** | Hosted deployment, environment configuration, and health checks. |
@@ -175,12 +180,25 @@ the interface. It is disabled unless explicitly configured.
 | `MIMO_API_KEY` | none | Required unless mock mode is enabled |
 | `MIMO_BASE_URL` | `https://api.xiaomimimo.com/v1` | API endpoint |
 | `MIMO_MODEL` | `mimo-v2.5` | Vision-capable model |
-| `MIMO_TIMEOUT_SECONDS` | `25` | Upstream request timeout |
+| `MIMO_TIMEOUT_SECONDS` | `20` | Upstream request timeout; the UI provides explicit retry controls |
 | `AI_PROVIDER` | `mimo` | Set to `mock` only for local demonstration |
-| `MAX_UPLOAD_MB` | `12` | Per-label-image request upload limit |
+| `MAX_UPLOAD_MB` | `12` | Total HTTP request upload limit; multiple views share this limit |
 
-MiMo receives images as Base64 data URLs. Uploaded images are not written to
-the application filesystem or database.
+MiMo receives optimized images as Base64 data URLs. Images are oriented,
+resized to at most 900 pixels on the longest edge, and recompressed only when
+that reduces the payload. Uploaded images are not written to the application
+filesystem or database. Images above 16 megapixels are rejected before full
+decode to protect the hosted service from excessive memory use.
+
+### Latency target
+
+The stakeholder's approximately five-second goal is treated as a performance
+target rather than a guaranteed external-service SLA. The request path uses a
+compact response schema, a focused quick-scan prompt, a 700-token response cap,
+in-memory image optimization, disabled model thinking, no hidden SDK retry, and
+two concurrent browser requests. Network and provider load can still cause an
+individual result to exceed the target; a failed item remains independently
+retryable instead of blocking the batch.
 
 ## Quick label scan
 
@@ -237,15 +255,31 @@ pytest
 ```
 
 The tests cover both API workflows, normalization, fuzzy-name handling,
-ABV/proof arithmetic, volume normalization, warning-heading handling, status
-aggregation, request validation, and mock-provider behavior.
+separate ABV/proof handling, volume normalization, warning-heading handling,
+status aggregation, request validation, mock-provider behavior, and evidence
+package integrity.
 
 GitHub Actions runs this suite for every pull request.
+
+## Reproducible test evidence
+
+[`evidence/`](evidence/) contains seven runnable CSV batches with 32 label
+images: matched and deliberately mismatched beer, wine, and distilled-spirit
+sets plus two distorted spirit cases. Each image has a corresponding submitted
+application row and a provenance entry in
+[`evidence/source-index.csv`](evidence/source-index.csv) with its public TTB ID
+and any intentional test modification. The evidence README documents expected
+outcomes, source limitations, and exact reproduction steps.
+
+The larger local archive of saved registry pages is intentionally excluded;
+duplicated HTML, scripts, styles, and session artifacts do not contribute to a
+repeatable label-review test.
 
 ## Render deployment
 
 1. Create a Render Web Service connected to this repository.
-2. Select Python and a free instance as it is sufficient.
+2. Select Python and a paid Starter instance to avoid cold starts and make
+   latency testing more consistent.
 3. Add `MIMO_API_KEY` as a secret environment variable.
 4. Render will use [`render.yaml`](render.yaml), or configure manually:
 
@@ -253,8 +287,9 @@ GitHub Actions runs this suite for every pull request.
    - Start command:
      `gunicorn "app:create_app()" --worker-class gthread --workers 1 --threads 4 --timeout 60`
 
-No persistent disk is required. A free render plan instance should be
-sufficient for the baseline because model inference runs remotely.
+No persistent disk is required. The application itself is lightweight because
+model inference runs remotely; confirm memory and latency with Render metrics
+under realistic batch uploads.
 
 ## Assumptions
 
@@ -282,14 +317,14 @@ sufficient for the baseline because model inference runs remotely.
 
 ## Known limitations
 
-- The prototype was trained on common label comparisons for distilled spirits, wine,
+- The prototype was tested on common label comparisons for distilled spirits, wine,
   and malt beverages; it is not a comprehensive commodity-specific rules engine.
 - Model confidence is advisory and is never sufficient by itself to pass a
   check.
 - A photograph cannot establish physical font size without trustworthy scale
   information.
-- Boldness and legibility are visual model observations; uncertainty becomes
-  manual review.
+- Warning boldness, wording, legibility, size, and placement remain manual-review
+  items rather than visual-model determinations.
 - The automated screen checks whether the government-warning heading can be
   confidently located. Exact wording, typography, legibility, and placement
   remain human-review items.
@@ -326,15 +361,16 @@ Every repository change was delivered through a pull request:
 | [#17](https://github.com/brianbzeng/treasurytakehome/pull/17) | Combined individual review, quick scan, and CSV batch comparison. |
 | [#18](https://github.com/brianbzeng/treasurytakehome/pull/18) | Restored individual review without requiring a beverage-type dropdown. |
 | [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
-PR 20-22 readme adjustments/edits
+| [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Documented the completed project handoff, setup, architecture, and deployment. |
+| [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, and attention-to-detail tradeoffs. |
+| [#22](https://github.com/brianbzeng/treasurytakehome/pull/22) | Refined the tools and assumptions sections for a concise assessment handoff. |
 
 ## Planned follow-up
 
-1. Benchmark MiMo extraction against a curated label-image test set.
-2. Add targeted second-pass transcription for uncertain warning statements.
-3. Add optional OpenCV preprocessing and local OCR behind the same extraction
+1. Benchmark hosted MiMo accuracy and latency across the published evidence set.
+2. Add optional OpenCV preprocessing and local OCR behind the same extraction
    interface when deployment capacity permits.
-4. Add beverage-specific fields such as wine appellation/vintage and
+3. Add beverage-specific fields such as wine appellation/vintage and
    malt-beverage composition statements.
-5. Add durable batch jobs, authentication, audit logs, and approved cloud
+4. Add durable batch jobs, authentication, audit logs, and approved cloud
    storage for a production-oriented architecture.

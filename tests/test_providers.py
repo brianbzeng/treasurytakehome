@@ -1,11 +1,20 @@
+from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from treasury_app.models import ApplicationData
+from treasury_app.services import providers as providers_module
 from treasury_app.services.providers import (
+    MAX_COMPLETION_TOKENS,
+    MAX_PROVIDER_IMAGE_EDGE,
+    SCREEN_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    ImageInput,
     MiMoProvider,
     ProviderError,
+    optimize_image_for_provider,
     parse_extraction_response,
 )
 
@@ -25,14 +34,15 @@ class FakeCompletions:
         )
 
 
-def test_mimo_retries_once_after_an_invalid_structured_response():
+def test_mimo_uses_compact_request_configuration_without_hidden_retries():
     provider = MiMoProvider(
         api_key="test-key",
         base_url="https://example.test/v1",
         model="test-model",
         timeout_seconds=1,
     )
-    completions = FakeCompletions(["not json", "{}"])
+    assert provider.client.max_retries == 0
+    completions = FakeCompletions(["{}"])
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
     application = ApplicationData(
         brand_name="Example Brand",
@@ -45,12 +55,16 @@ def test_mimo_retries_once_after_an_invalid_structured_response():
     extraction = provider.extract([], application)
 
     assert extraction.brand_name.value is None
-    assert completions.calls == 2
+    assert completions.calls == 1
     assert completions.requests[0]["temperature"] == 0
-    assert completions.requests[0]["max_completion_tokens"] == 2400
+    assert (
+        completions.requests[0]["max_completion_tokens"]
+        == MAX_COMPLETION_TOKENS
+    )
     assert completions.requests[0]["extra_body"] == {
         "thinking": {"type": "disabled"}
     }
+    assert completions.requests[0]["messages"][0]["content"] == SYSTEM_PROMPT
     prompt = completions.requests[0]["messages"][1]["content"][-1]["text"]
     assert "Beverage profile: Determine from the visible label" in prompt
 
@@ -94,14 +108,40 @@ def test_extraction_parser_recovers_a_wrapped_object_with_surrounding_prose():
     assert extraction.net_contents.confidence == 0.98
 
 
-def test_mimo_still_fails_safely_after_two_unrecoverable_responses():
+def test_extraction_parser_accepts_the_compact_response_schema():
+    extraction = parse_extraction_response(
+        '{"t":"malt_beverage","b":{"v":"Example Beer","f":true,"c":0.97},'
+        '"y":{"v":"IPA","c":0.93},"a":{"v":"6.2% Alc./Vol.","c":0.99},'
+        '"n":{"v":"12 FL OZ","c":0.98},"w":{"h":"GOVERNMENT WARNING:","c":0.95}}'
+    )
+
+    assert extraction.beverage_type == "malt_beverage"
+    assert extraction.brand_name.value == "Example Beer"
+    assert extraction.brand_name.evidence == "Example Beer"
+    assert extraction.brand_name.expected_value_found is True
+    assert extraction.class_type.value == "IPA"
+    assert extraction.alcohol_content.value == "6.2% Alc./Vol."
+    assert extraction.net_contents.value == "12 FL OZ"
+    assert extraction.government_warning.heading_text == "GOVERNMENT WARNING:"
+
+
+def test_extraction_parser_accepts_a_warning_only_compact_response():
+    extraction = parse_extraction_response(
+        '{"t":null,"w":{"h":"GOVERNMENT WARNING:","c":0.9}}'
+    )
+
+    assert extraction.brand_name.value is None
+    assert extraction.government_warning.heading_text == "GOVERNMENT WARNING:"
+
+
+def test_mimo_fails_safely_without_an_invisible_provider_retry():
     provider = MiMoProvider(
         api_key="test-key",
         base_url="https://example.test/v1",
         model="test-model",
         timeout_seconds=1,
     )
-    completions = FakeCompletions(["not json", "still not json"])
+    completions = FakeCompletions(["not json"])
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
     application = ApplicationData(
         brand_name="Example Brand",
@@ -114,7 +154,7 @@ def test_mimo_still_fails_safely_after_two_unrecoverable_responses():
     with pytest.raises(ProviderError, match="invalid result"):
         provider.extract([], application)
 
-    assert completions.calls == 2
+    assert completions.calls == 1
 
 
 def test_mimo_supports_label_only_screening():
@@ -133,3 +173,49 @@ def test_mimo_supports_label_only_screening():
 
     assert extraction.beverage_type == "wine"
     assert extraction.brand_name.value == "Example Wine"
+    request = completions.requests[0]
+    assert request["messages"][0]["content"] == SCREEN_SYSTEM_PROMPT
+    assert len(SCREEN_SYSTEM_PROMPT) < len(SYSTEM_PROMPT) / 2
+
+
+def test_provider_image_optimization_reduces_large_transport_payload():
+    source = Image.effect_noise((1200, 800), 80).convert("RGB")
+    upload = BytesIO()
+    source.save(upload, format="PNG")
+    original = ImageInput(
+        content=upload.getvalue(),
+        mime_type="image/png",
+        filename="large-label.png",
+    )
+
+    optimized = optimize_image_for_provider(original)
+
+    assert optimized.mime_type == "image/jpeg"
+    assert len(optimized.content) < len(original.content) * 0.9
+    with Image.open(BytesIO(optimized.content)) as result:
+        assert max(result.size) == MAX_PROVIDER_IMAGE_EDGE
+
+
+def test_provider_image_optimization_falls_back_for_invalid_data():
+    original = ImageInput(
+        content=b"not-an-image",
+        mime_type="image/jpeg",
+        filename="broken.jpg",
+    )
+
+    assert optimize_image_for_provider(original) is original
+
+
+def test_provider_image_optimization_rejects_excessive_dimensions(monkeypatch):
+    source = Image.new("RGB", (20, 20), "white")
+    upload = BytesIO()
+    source.save(upload, format="PNG")
+    original = ImageInput(
+        content=upload.getvalue(),
+        mime_type="image/png",
+        filename="oversized-label.png",
+    )
+    monkeypatch.setattr(providers_module, "MAX_PROVIDER_IMAGE_PIXELS", 100)
+
+    with pytest.raises(ProviderError, match="16 megapixels"):
+        optimize_image_for_provider(original)

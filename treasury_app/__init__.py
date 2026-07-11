@@ -20,7 +20,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "MIMO_BASE_URL", "https://api.xiaomimimo.com/v1"
         ),
         MIMO_MODEL=os.getenv("MIMO_MODEL", "mimo-v2.5"),
-        MIMO_TIMEOUT_SECONDS=float(os.getenv("MIMO_TIMEOUT_SECONDS", "25")),
+        MIMO_TIMEOUT_SECONDS=float(os.getenv("MIMO_TIMEOUT_SECONDS", "20")),
     )
 
     if test_config:
