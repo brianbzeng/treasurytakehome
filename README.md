@@ -51,9 +51,9 @@ The workflow intentionally separates three jobs that have different certainty:
 
 - I kept image extraction behind a provider interface and used a hosted vision
   model instead of the original plan to bundle OpenCV and PaddleOCR. This kept the
-  Render service small while leaving a clean path for local OCR later. Lightweight
-  Pillow preprocessing now resizes and recompresses images in memory before
-  inference to reduce transfer and vision-processing time.
+  Render service small while leaving a clean path for local preprocessing or OCR later
+  if needed. Lightweight Pillow preprocessing now resizes and recompresses images
+  in memory before inference to reduce transfer and vision-processing time.
 - I separated probabilistic extraction from deterministic comparison. MiMo
   identifies visible evidence; Python validates the response, normalizes it,
   and decides whether the result is a match, a possible difference, or unable
@@ -72,10 +72,10 @@ The workflow intentionally separates three jobs that have different certainty:
 - I narrowed automated government-warning review after testing showed that a
   vision model could locate the heading more reliably than it could judge exact
   boldness, type size, wording, or placement. A missing or low-confidence
-  heading prevents a green result; those remaining details stay explicit
-  human-review items.
+  heading prevents a green result. Those details remain explicit human-review
+  items.
 - I designed for failure as part of the normal workflow: malformed model JSON
-  becomes an item-level failure, uncertain evidence is routed to a reviewer,
+  is recovered when safe, uncertain evidence is routed to a reviewer,
   failed batch items can be retried individually, and the summary recalculates
   after a successful retry.
 - I kept the interface direct for reviewers with different levels of technical
@@ -278,8 +278,7 @@ repeatable label-review test.
 ## Render deployment
 
 1. Create a Render Web Service connected to this repository.
-2. Select Python and a paid Starter instance to avoid cold starts and make
-   latency testing more consistent.
+2. Select Python and a free instance as it is sufficient.
 3. Add `MIMO_API_KEY` as a secret environment variable.
 4. Render will use [`render.yaml`](render.yaml), or configure manually:
 
@@ -287,9 +286,8 @@ repeatable label-review test.
    - Start command:
      `gunicorn "app:create_app()" --worker-class gthread --workers 1 --threads 4 --timeout 60`
 
-No persistent disk is required. The application itself is lightweight because
-model inference runs remotely; confirm memory and latency with Render metrics
-under realistic batch uploads.
+No persistent disk is required. A free render plan instance should be
+sufficient for the baseline because model inference runs remotely.
 
 ## Assumptions
 
@@ -317,7 +315,7 @@ under realistic batch uploads.
 
 ## Known limitations
 
-- The prototype was tested on common label comparisons for distilled spirits, wine,
+- The prototype was trained on common label comparisons for distilled spirits, wine,
   and malt beverages; it is not a comprehensive commodity-specific rules engine.
 - Model confidence is advisory and is never sufficient by itself to pass a
   check.
@@ -361,10 +359,11 @@ Every repository change was delivered through a pull request:
 | [#17](https://github.com/brianbzeng/treasurytakehome/pull/17) | Combined individual review, quick scan, and CSV batch comparison. |
 | [#18](https://github.com/brianbzeng/treasurytakehome/pull/18) | Restored individual review without requiring a beverage-type dropdown. |
 | [#19](https://github.com/brianbzeng/treasurytakehome/pull/19) | Separated the three workflows into dedicated, more compact pages. |
-| [#20](https://github.com/brianbzeng/treasurytakehome/pull/20) | Documented the completed project handoff, setup, architecture, and deployment. |
-| [#21](https://github.com/brianbzeng/treasurytakehome/pull/21) | Documented AI usage, engineering decisions, and attention-to-detail tradeoffs. |
-| [#22](https://github.com/brianbzeng/treasurytakehome/pull/22) | Refined the tools and assumptions sections for a concise assessment handoff. |
-| [#23](https://github.com/brianbzeng/treasurytakehome/pull/23) | Improved warning reliability and latency and published reproducible evidence batches. |
+PR 20-22 readme adjustments/edits
+
+PR 23 improved warning reliability and latency and published reproducible evidence batches.
+
+PR 24 reinstated the author's README revisions after the reliability update.
 
 ## Planned follow-up
 
