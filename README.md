@@ -363,6 +363,8 @@ PR 20-22 readme adjustments/edits
 
 PR 23 improved warning reliability and latency and published reproducible evidence batches.
 
+PR 24 reinstated the author's README revisions after the reliability update.
+
 ## Planned follow-up
 
 1. Benchmark hosted MiMo accuracy and latency across the published evidence set.
